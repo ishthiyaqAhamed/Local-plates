@@ -25,30 +25,25 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    // Dismiss keyboard before validation
     Keyboard.dismiss();
 
-    // Validation checks
     if (!email || !phone || !password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       Alert.alert("Error", "Please enter a valid email address");
       return;
     }
 
-    // Basic phone validation (simple example, adjust as needed)
     const phoneRegex = /^[0-9]{10}$/;
     if (!phoneRegex.test(phone.replace(/[^\d]/g, ''))) {
       Alert.alert("Error", "Please enter a valid 10-digit phone number");
       return;
     }
 
-    // Password strength check
     if (password.length < 8) {
       Alert.alert("Error", "Password must be at least 8 characters long");
       return;
@@ -63,7 +58,7 @@ export default function RegisterScreen() {
     try {
       await registerUser(email, password, {
         phone,
-        displayName: email.split("@")[0], // Basic display name
+        displayName: email.split("@")[0],
       });
       Alert.alert("Success", "Account created successfully", [
         { text: "OK", onPress: () => router.replace("/(auth)/login") },
@@ -80,8 +75,8 @@ export default function RegisterScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.keyboardAvoidContainer}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView 
+      <TouchableWithoutFeedback onPress={Platform.OS === "web" ? undefined : Keyboard.dismiss}>
+        <ScrollView
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
@@ -191,6 +186,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     backgroundColor: "#fff",
+    width: "100%",
+    maxWidth: 450,
+    alignSelf: "center",
   },
   inputContainer: {
     width: '100%',

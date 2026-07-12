@@ -27,18 +27,15 @@ export default function ProfileScreen() {
   const { userOrders, getUserOrders, loading, error } = useOrder();
   const router = useRouter();
 
-  // State for pending reviews and orders to be received
   const [ordersToReview, setOrdersToReview] = useState<OrderSummary[]>([]);
   const [ordersToReceive, setOrdersToReceive] = useState<OrderSummary[]>([]);
 
-  // Debug output to check what's happening
   console.log("User:", user?.uid);
   console.log("UserOrders count:", userOrders?.length);
   console.log("UserOrders:", JSON.stringify(userOrders));
 
   useEffect(() => {
     if (user) {
-      // Make sure to call getUserOrders to fetch the latest orders
       getUserOrders();
     }
   }, [user]);
@@ -47,12 +44,10 @@ export default function ProfileScreen() {
     if (userOrders && userOrders.length > 0) {
       console.log("Processing orders...");
 
-      // Filter orders that need to be reviewed (delivered orders)
       const toReview = userOrders.filter(
         (order) => order.status === OrderStatus.DELIVERED
       );
 
-      // Filter orders that are on the way (processing or shipped)
       const toReceive = userOrders.filter(
         (order) =>
           order.status === OrderStatus.SHIPPED ||
@@ -65,7 +60,6 @@ export default function ProfileScreen() {
       setOrdersToReview(toReview);
       setOrdersToReceive(toReceive);
     } else {
-      // Reset states when no orders are available
       setOrdersToReview([]);
       setOrdersToReceive([]);
     }
@@ -92,12 +86,10 @@ export default function ProfileScreen() {
     router.push("/(user)/orders");
   };
 
-  // For manual refetch of orders
   const handleRefreshOrders = () => {
     getUserOrders();
   };
 
-  // Placeholder for avatar if no image is available
   const renderAvatar = () => {
     if (user?.photoURL) {
       return (
@@ -119,6 +111,46 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#000" />
         <Text style={styles.loadingText}>Loading your profile...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Guest state - not logged in
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar style="dark" />
+        <View style={guestStyles.wrapper}>
+          <Ionicons name="person-circle-outline" size={90} color="#ccc" />
+          <Text style={guestStyles.title}>You're browsing as a guest</Text>
+          <Text style={guestStyles.subtitle}>
+            Log in or create an account to track orders, save addresses, and
+            check out faster.
+          </Text>
+
+          <TouchableOpacity
+            style={guestStyles.loginButton}
+            onPress={() => router.push("/(auth)/login")}
+          >
+            <Text style={guestStyles.loginButtonText}>LOG IN</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={guestStyles.registerButton}
+            onPress={() => router.push("/(auth)/register")}
+          >
+            <Text style={guestStyles.registerButtonText}>REGISTER</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={guestStyles.sellerLink}
+            onPress={() => router.push("/(auth)/seller-register")}
+          >
+            <Text style={guestStyles.sellerLinkText}>
+              Want to sell on Local Plates? Register as a seller
+            </Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -168,7 +200,7 @@ export default function ProfileScreen() {
             onPress={handleAllOrdersPress}
           >
             <Text style={styles.orderButtonText}>ORDER</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
         </View>
 
         {/* Orders To Be Received Section */}
@@ -247,7 +279,6 @@ export default function ProfileScreen() {
 const formatDate = (timestamp: any): string => {
   if (!timestamp) return "N/A";
 
-  // Handle Firestore timestamp
   const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
   return date.toLocaleDateString("en-US", {
     month: "short",
@@ -378,6 +409,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
     paddingVertical: 14,
+
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 4,
@@ -511,5 +543,64 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
     color: "#fff",
+  },
+});
+
+const guestStyles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 30,
+    width: "100%",
+    maxWidth: 450,
+    alignSelf: "center",
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 16,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#777",
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 30,
+  },
+  loginButton: {
+    width: "100%",
+    backgroundColor: "#000",
+    paddingVertical: 15,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  loginButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  registerButton: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#000",
+    paddingVertical: 15,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  registerButtonText: {
+    color: "#000",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  sellerLink: {
+    marginTop: 24,
+  },
+  sellerLinkText: {
+    color: "#2196F3",
+    fontSize: 13,
+    textAlign: "center",
   },
 });

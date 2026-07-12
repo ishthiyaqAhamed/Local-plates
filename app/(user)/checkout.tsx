@@ -42,27 +42,22 @@ export default function CheckoutScreen() {
 
   useEffect(() => {
     if (lat && lng) {
-      // ✅ User selected a location manually — override current location
       const selectedLat = parseFloat(lat as string);
       const selectedLng = parseFloat(lng as string);
 
       setLatitude(selectedLat);
       setLongitude(selectedLng);
 
-      // Reverse geocode selected coordinates to get address
       reverseGeocode(selectedLat, selectedLng);
     } else {
-      // ✅ No selected location — fallback to device's current location
       getCurrentLocation();
     }
   }, [lat, lng]);
 
-  // 🗺️ Get location from device
   useEffect(() => {
     getCurrentLocation();
   }, []);
 
-  // 🛰️ Get current device location
   async function getCurrentLocation() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -83,7 +78,6 @@ export default function CheckoutScreen() {
     }
   }
 
-  // 🔁 Reusable function to reverse geocode
   async function reverseGeocode(latitude: number, longitude: number) {
     try {
       const [geoData] = await Location.reverseGeocodeAsync({
@@ -101,21 +95,27 @@ export default function CheckoutScreen() {
     }
   }
 
-  const appFee = 50; // Fixed
+  const appFee = 50;
   const deliveryCharge = deliveryType === "Standard" ? 150 : 300;
   const subtotal = getTotalAmount();
   const total = subtotal + appFee + deliveryCharge;
 
   const handlePlaceOrder = async () => {
     if (!user) {
-      Alert.alert("Error", "You must be logged in to place an order");
+      Alert.alert(
+        "Login Required",
+        "Please log in or create an account to place an order.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Log In", onPress: () => router.push("/(auth)/login") },
+        ]
+      );
       return;
     }
 
     setIsPlacingOrder(true);
 
     try {
-      // Prepare delivery info
       const deliveryInfo: DeliveryInfo = {
         address,
         city,
@@ -128,15 +128,12 @@ export default function CheckoutScreen() {
           latitude && longitude ? { latitude, longitude } : undefined,
       };
 
-      // Call the placeOrder method from OrderContext
       const orderId = await placeOrder(deliveryInfo, "Cash on Delivery");
 
       if (orderId) {
         ToastAndroid.show("Order placed successfully!", ToastAndroid.SHORT);
-        // Navigate to order confirmation screen
         router.push("/(user)/confirmation");
       } else {
-        // Show error message
         Alert.alert(
           "Error",
           orderError || "Failed to place order. Please try again."

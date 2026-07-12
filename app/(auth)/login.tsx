@@ -108,6 +108,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 20,
     backgroundColor: "#fff",
+    width: "100%",
+    maxWidth: 450,
+    alignSelf: "center",
   },
   backButton: {
     position: "absolute",

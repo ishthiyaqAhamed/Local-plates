@@ -8,9 +8,10 @@ import { View, Platform } from "react-native";
 export default function UserLayout() {
   const { user, loading } = useAuth();
 
-  // Check if the user is authenticated and is a regular user
-  if (!loading && (!user || user.userType !== "user")) {
-    return <Redirect href="/" />;
+  // Only kick out logged-in SELLERS (they belong in the seller dashboard).
+  // Guests (no user) and regular users are both allowed to browse here.
+  if (!loading && user && user.userType === "seller") {
+    return <Redirect href="/(seller)" />;
   }
 
   return (
@@ -42,10 +43,10 @@ export default function UserLayout() {
           title: "Home",
           tabBarIcon: ({ color, size }) => (
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons 
-                name={Platform.OS === 'ios' ? "home-outline" : "home"} 
-                size={size} 
-                color={color} 
+              <Ionicons
+                name={Platform.OS === 'ios' ? "home-outline" : "home"}
+                size={size}
+                color={color}
               />
             </View>
           ),
@@ -57,10 +58,10 @@ export default function UserLayout() {
           title: "Search",
           tabBarIcon: ({ color, size }) => (
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons 
-                name={Platform.OS === 'ios' ? "search-outline" : "search"} 
-                size={size} 
-                color={color} 
+              <Ionicons
+                name={Platform.OS === 'ios' ? "search-outline" : "search"}
+                size={size}
+                color={color}
               />
             </View>
           ),
@@ -99,10 +100,10 @@ export default function UserLayout() {
           title: "Chat",
           tabBarIcon: ({ color, size }) => (
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons 
-                name={Platform.OS === 'ios' ? "mail-outline" : "mail"} 
-                size={size} 
-                color={color} 
+              <Ionicons
+                name={Platform.OS === 'ios' ? "mail-outline" : "mail"}
+                size={size}
+                color={color}
               />
             </View>
           ),
@@ -114,10 +115,10 @@ export default function UserLayout() {
           title: "Profile",
           tabBarIcon: ({ color, size }) => (
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons 
-                name={Platform.OS === 'ios' ? "person-outline" : "person"} 
-                size={size} 
-                color={color} 
+              <Ionicons
+                name={Platform.OS === 'ios' ? "person-outline" : "person"}
+                size={size}
+                color={color}
               />
             </View>
           ),

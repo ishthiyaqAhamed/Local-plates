@@ -54,12 +54,10 @@ export default function SellerRegisterScreen() {
         const loc = data.results[0].geometry.location;
         setLatitude(loc.lat);
         setLongitude(loc.lng);
-        
-        // Optionally extract additional address components from the response
+
         const formattedAddress = data.results[0].formatted_address;
         console.log("Found address:", formattedAddress);
-        
-        // Animate to the new location
+
         mapRef.current?.animateToRegion({
           latitude: loc.lat,
           longitude: loc.lng,
@@ -108,18 +106,17 @@ export default function SellerRegisterScreen() {
     try {
       const lat = parseFloat(latitudeInput);
       const lng = parseFloat(longitudeInput);
-      
+
       if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
         Alert.alert("Invalid Coordinates", "Please enter valid latitude (-90 to 90) and longitude (-180 to 180) values.");
         return;
       }
-      
+
       setLatitude(lat);
       setLongitude(lng);
       setIsEditingCoordinates(false);
       setLocationConfirmed(true);
-      
-      // Animate to the new location
+
       mapRef.current?.animateToRegion({
         latitude: lat,
         longitude: lng,
@@ -140,10 +137,8 @@ export default function SellerRegisterScreen() {
   };
 
   const handleRegister = async () => {
-    // Dismiss keyboard before validation
     Keyboard.dismiss();
 
-    // Comprehensive validation
     if (
       !email ||
       !phone ||
@@ -162,21 +157,18 @@ export default function SellerRegisterScreen() {
       return;
     }
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       Alert.alert("Error", "Please enter a valid email address");
       return;
     }
 
-    // Phone validation (adjust regex as needed for your region)
     const phoneRegex = /^[0-9]{10}$/;
     if (!phoneRegex.test(phone.replace(/[^\d]/g, ""))) {
       Alert.alert("Error", "Please enter a valid 10-digit phone number");
       return;
     }
 
-    // Password validation
     if (password.length < 8) {
       Alert.alert("Error", "Password must be at least 8 characters long");
       return;
@@ -187,7 +179,6 @@ export default function SellerRegisterScreen() {
       return;
     }
 
-    // Zip code validation (optional, adjust as needed)
     if (zipCode && !/^\d{5}(-\d{4})?$/.test(zipCode)) {
       Alert.alert("Error", "Please enter a valid zip code");
       return;
@@ -223,7 +214,7 @@ export default function SellerRegisterScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.keyboardAvoidContainer}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <TouchableWithoutFeedback onPress={Platform.OS === "web" ? undefined : Keyboard.dismiss}>
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
@@ -340,10 +331,10 @@ export default function SellerRegisterScreen() {
               />
 
               <Text style={styles.mapInstructionText}>
-                {locationConfirmed 
-                  ? "Business location confirmed ✓" 
-                  : latitude && longitude 
-                    ? "Tap 'Confirm Location' if the pin position is correct, or drag to adjust" 
+                {locationConfirmed
+                  ? "Business location confirmed ✓"
+                  : latitude && longitude
+                    ? "Tap 'Confirm Location' if the pin position is correct, or drag to adjust"
                     : "Fill in your address and tap 'Find' to locate your business"}
               </Text>
 
@@ -392,15 +383,15 @@ export default function SellerRegisterScreen() {
               {latitude && longitude && !isEditingCoordinates && (
                 <View style={styles.locationButtonContainer}>
                   {!locationConfirmed ? (
-                    <TouchableOpacity 
-                      style={styles.confirmLocationButton} 
+                    <TouchableOpacity
+                      style={styles.confirmLocationButton}
                       onPress={confirmLocation}
                     >
                       <Text style={styles.confirmLocationButtonText}>Confirm Location</Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity 
-                      style={styles.editLocationButton} 
+                    <TouchableOpacity
+                      style={styles.editLocationButton}
                       onPress={editCoordinates}
                     >
                       <Text style={styles.editLocationButtonText}>Edit Location</Text>
@@ -408,7 +399,6 @@ export default function SellerRegisterScreen() {
                   )}
                 </View>
               )}
-
               {isEditingCoordinates && (
                 <View style={styles.coordinatesContainer}>
                   <Text style={styles.coordinatesLabel}>Fine-tune your coordinates:</Text>
@@ -434,8 +424,8 @@ export default function SellerRegisterScreen() {
                       />
                     </View>
                   </View>
-                  <TouchableOpacity 
-                    style={styles.saveCoordinatesButton} 
+                  <TouchableOpacity
+                    style={styles.saveCoordinatesButton}
                     onPress={saveCoordinates}
                   >
                     <Text style={styles.saveCoordinatesButtonText}>Save Coordinates</Text>
@@ -452,7 +442,7 @@ export default function SellerRegisterScreen() {
 
             <TouchableOpacity
               style={[
-                styles.button, 
+                styles.button,
                 loading && styles.disabledButton,
                 !locationConfirmed && styles.disabledButton
               ]}
@@ -490,6 +480,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     backgroundColor: "#fff",
+    width: "100%",
+    maxWidth: 450,
+    alignSelf: "center",
   },
   inputContainer: {
     width: "100%",

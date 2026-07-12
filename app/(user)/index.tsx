@@ -48,6 +48,8 @@ export default function BuyerHomeScreen() {
   const [phone, setPhone] = useState("0712345678");
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const router = useRouter();
   const { lat, lng } = useLocalSearchParams();
   // Category icons mapping
@@ -82,6 +84,8 @@ export default function BuyerHomeScreen() {
 
       setLatitude(selectedLat);
       setLongitude(selectedLng);
+      setLocationLoading(false);
+      setLocationError(null);
 
       // Reverse geocode selected coordinates to get address
       reverseGeocode(selectedLat, selectedLng);
@@ -99,10 +103,13 @@ export default function BuyerHomeScreen() {
 
   // 🛰️ Get current device location
   async function getCurrentLocation() {
+    setLocationLoading(true);
+    setLocationError(null);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission denied", "Location permission is required");
+        setLocationError("Location permission denied. Set your address manually.");
+        setLocationLoading(false);
         return;
       }
 
@@ -111,11 +118,13 @@ export default function BuyerHomeScreen() {
       setLatitude(latitude);
       setLongitude(longitude);
 
-      reverseGeocode(latitude, longitude);
+      await reverseGeocode(latitude, longitude);
       fetchNearShops(latitude, longitude);
     } catch (err) {
       console.error("Error getting location:", err);
-      Alert.alert("Error", "Failed to get current location");
+      setLocationError("Couldn't detect your location. Set it manually.");
+    } finally {
+      setLocationLoading(false);
     }
   }
 
@@ -207,7 +216,12 @@ export default function BuyerHomeScreen() {
             >
               <Feather name="search" size={22} color="#333" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() =>
+                Alert.alert("Notifications", "You're all caught up — no new notifications yet.")
+              }
+            >
               <Feather name="bell" size={22} color="#333" />
             </TouchableOpacity>
           </View>
@@ -222,9 +236,20 @@ export default function BuyerHomeScreen() {
               color="#333"
               style={styles.locationIcon}
             />
-            <Text style={styles.locationText}>
-              {address}, {city}
-            </Text>
+            {locationLoading ? (
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <ActivityIndicator size="small" color="#333" style={{ marginRight: 8 }} />
+                <Text style={styles.locationText}>Detecting your location...</Text>
+              </View>
+            ) : locationError ? (
+              <Text style={[styles.locationText, { color: "#c0392b" }]}>
+                {locationError}
+              </Text>
+            ) : (
+              <Text style={styles.locationText}>
+                {address}, {city}
+              </Text>
+            )}
           </View>
         </View>
         <TouchableOpacity
@@ -243,6 +268,7 @@ export default function BuyerHomeScreen() {
             Set Delivery Location on Map
           </Text>
         </TouchableOpacity>
+
 
         {/* Greeting */}
         <View style={styles.greetingContainer}>
@@ -310,7 +336,10 @@ export default function BuyerHomeScreen() {
               <Ionicons name="location-outline" size={18} color="#FF3366" />
               <Text style={styles.sectionTitle}>NEARBY HOMEMADE SELLERS</Text>
             </View>
-            <TouchableOpacity style={styles.viewAllButton}>
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              onPress={() => router.push("/(user)/search")}
+            >
               <Text style={styles.viewAllText}>View all</Text>
             </TouchableOpacity>
           </View>
@@ -318,8 +347,8 @@ export default function BuyerHomeScreen() {
           {loading ? (
             renderLoadingShimmer()
           ) : (
-            <View style={styles.shopContainer}>
-              {shops.map((shop, index) => (
+            <View style={styles.shopContainer}></View>
+            {shops.map((shop, index) => (
                 <TouchableOpacity
                   key={shop.uid}
                   style={styles.shopItem}
@@ -388,7 +417,10 @@ export default function BuyerHomeScreen() {
               <Ionicons name="flame-outline" size={18} color="#FF3366" />
               <Text style={styles.sectionTitle}>POPULAR THIS WEEK</Text>
             </View>
-            <TouchableOpacity style={styles.viewAllButton}>
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              onPress={() => router.push("/(user)/search")}
+            >
               <Text style={styles.viewAllText}>View all</Text>
             </TouchableOpacity>
           </View>
@@ -666,112 +698,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
-  promotedText: {
-    fontSize: 10,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  shopName: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 8,
-    color: "#333",
-  },
-  shopInfoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ratingText: {
-    fontSize: 12,
-    color: "#555",
-    marginLeft: 4,
-    fontWeight: "500",
-  },
-  distanceContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  distanceText: {
-    fontSize: 12,
-    color: "#777",
-    marginLeft: 2,
-  },
-  popularSection: {
-    marginTop: 24,
-    paddingLeft: 16,
-  },
-  popularScrollContent: {
-    paddingRight: 16,
-  },
-  popularItem: {
-    width: width * 0.7,
-    borderRadius: 16,
-    backgroundColor: "#fff",
-    overflow: "hidden",
-    marginRight: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  popularImage: {
-    width: "100%",
-    height: 130,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  popularImageFallback: {
-    width: "100%",
-    height: 130,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  popularImageGradient: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 60,
-  },
-  popularInfo: {
-    padding: 12,
-  },
-  popularName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  popularSubInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  popularRating: {
-    fontSize: 12,
-    color: "#555",
-    marginLeft: 4,
-    marginRight: 6,
-  },
-  popularCategory: {
-    fontSize: 12,
-    color: "#777",
+    backgroundColor: "#FF3366",
   },
   loadingContainer: {
     marginTop: 10,
