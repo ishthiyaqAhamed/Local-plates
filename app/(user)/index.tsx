@@ -22,7 +22,6 @@ import * as Location from "expo-location";
 const { width } = Dimensions.get("window");
 const itemWidth = (width - 48) / 3;
 
-// Define the allowed category types
 type CategoryType =
   | "Rice"
   | "Noodles"
@@ -52,7 +51,7 @@ export default function BuyerHomeScreen() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const router = useRouter();
   const { lat, lng } = useLocalSearchParams();
-  // Category icons mapping
+
   const categoryIcons: Record<CategoryType, keyof typeof Ionicons.glyphMap> = {
     Rice: "restaurant-outline",
     Noodles: "restaurant-outline",
@@ -66,7 +65,6 @@ export default function BuyerHomeScreen() {
     Seafood: "fish-outline",
   };
 
-  // Get icon for a category
   const getCategoryIcon = (
     category: CategoryType
   ): keyof typeof Ionicons.glyphMap => {
@@ -78,7 +76,6 @@ export default function BuyerHomeScreen() {
   }, []);
   useEffect(() => {
     if (lat && lng) {
-      // ✅ User selected a location manually — override current location
       const selectedLat = parseFloat(lat as string);
       const selectedLng = parseFloat(lng as string);
 
@@ -87,21 +84,17 @@ export default function BuyerHomeScreen() {
       setLocationLoading(false);
       setLocationError(null);
 
-      // Reverse geocode selected coordinates to get address
       reverseGeocode(selectedLat, selectedLng);
       fetchNearShops(selectedLat, selectedLng);
     } else {
-      // ✅ No selected location — fallback to device's current location
       getCurrentLocation();
     }
   }, [lat, lng]);
 
-  // 🗺️ Get location from device
   useEffect(() => {
     getCurrentLocation();
   }, []);
 
-  // 🛰️ Get current device location
   async function getCurrentLocation() {
     setLocationLoading(true);
     setLocationError(null);
@@ -128,7 +121,6 @@ export default function BuyerHomeScreen() {
     }
   }
 
-  // 🔁 Reusable function to reverse geocode
   async function reverseGeocode(latitude: number, longitude: number) {
     try {
       const [geoData] = await Location.reverseGeocodeAsync({
@@ -184,7 +176,6 @@ export default function BuyerHomeScreen() {
     </View>
   );
 
-  // Get random food icon for missing images
   const getFoodIcon = (index: number): keyof typeof Ionicons.glyphMap => {
     const icons: Array<keyof typeof Ionicons.glyphMap> = [
       "fast-food-outline",
@@ -202,7 +193,6 @@ export default function BuyerHomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Header */}
         <View style={styles.header}>
           <Image
             source={require("../../assets/images/Register.png")}
@@ -269,8 +259,6 @@ export default function BuyerHomeScreen() {
           </Text>
         </TouchableOpacity>
 
-
-        {/* Greeting */}
         <View style={styles.greetingContainer}>
           <Text style={styles.greeting}>Good day!</Text>
           <Text style={styles.questionText}>
@@ -278,7 +266,6 @@ export default function BuyerHomeScreen() {
           </Text>
         </View>
 
-        {/* Category Selection */}
         <View style={styles.categorySection}>
           {loading ? (
             <ScrollView
@@ -329,7 +316,6 @@ export default function BuyerHomeScreen() {
           )}
         </View>
 
-        {/* Nearby Shops */}
         <View style={styles.shopsSection}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleContainer}>
@@ -347,8 +333,8 @@ export default function BuyerHomeScreen() {
           {loading ? (
             renderLoadingShimmer()
           ) : (
-            <View style={styles.shopContainer}></View>
-            {shops.map((shop, index) => (
+            <View style={styles.shopContainer}>
+              {shops.map((shop, index) => (
                 <TouchableOpacity
                   key={shop.uid}
                   style={styles.shopItem}
@@ -410,7 +396,6 @@ export default function BuyerHomeScreen() {
           )}
         </View>
 
-        {/* Popular This Week Section */}
         <View style={styles.popularSection}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleContainer}>
@@ -489,17 +474,16 @@ export default function BuyerHomeScreen() {
   );
 }
 
-// Function to get color based on index
 const getColorForIndex = (index: number): string => {
   const colors = [
-    "#FF3366", // Pink
-    "#3498DB", // Blue
-    "#2ECC71", // Green
-    "#F39C12", // Orange
-    "#9B59B6", // Purple
-    "#E74C3C", // Red
-    "#1ABC9C", // Teal
-    "#34495E", // Navy
+    "#FF3366",
+    "#3498DB",
+    "#2ECC71",
+    "#F39C12",
+    "#9B59B6",
+    "#E74C3C",
+    "#1ABC9C",
+    "#34495E",
   ];
   return colors[index % colors.length];
 };
@@ -700,6 +684,37 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: "#FF3366",
   },
+  shopName: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 8,
+    color: "#333",
+  },
+  shopInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  ratingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  ratingText: {
+    fontSize: 12,
+    color: "#555",
+    marginLeft: 4,
+    fontWeight: "500",
+  },
+  distanceContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  distanceText: {
+    fontSize: 12,
+    color: "#777",
+    marginLeft: 2,
+  },
   loadingContainer: {
     marginTop: 10,
   },
@@ -741,7 +756,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-
   locationBox: {
     marginTop: 8,
     flexDirection: "row",
@@ -756,5 +770,78 @@ const styles = StyleSheet.create({
   locationText: {
     color: "#333",
     fontSize: 15,
+  },
+  popularSection: {
+    marginTop: 24,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  popularScrollContent: {
+    paddingRight: 16,
+  },
+  popularItem: {
+    width: 160,
+    height: 200,
+    borderRadius: 16,
+    overflow: "hidden",
+    marginRight: 14,
+    position: "relative",
+    backgroundColor: "#f0f0f0",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  popularImage: {
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+  },
+  popularImageFallback: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "absolute",
+  },
+  popularImageGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 80,
+  },
+  popularInfo: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    right: 10,
+  },
+  popularName: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  popularSubInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  popularRating: {
+    fontSize: 12,
+    color: "#fff",
+    marginLeft: 4,
+    marginRight: 6,
+  },
+  popularCategory: {
+    fontSize: 12,
+    color: "#eee",
   },
 });
