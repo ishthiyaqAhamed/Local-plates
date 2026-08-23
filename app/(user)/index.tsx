@@ -19,7 +19,9 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 
-const { width } = Dimensions.get("window");
+const { width: windowWidth } = Dimensions.get("window");
+const MAX_CONTENT_WIDTH = 500;
+const width = Math.min(windowWidth, MAX_CONTENT_WIDTH);
 const itemWidth = (width - 48) / 3;
 
 type CategoryType =
@@ -495,6 +497,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20,
+    width: "100%",
+    maxWidth: 500,
+    alignSelf: "center",
   },
   header: {
     flexDirection: "row",
