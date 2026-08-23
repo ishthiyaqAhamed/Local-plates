@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,24 +6,25 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Dimensions,
+  ImageBackground,
   ActivityIndicator,
   Platform,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useShop } from "../../context/shopContext";
+import { useAuth } from "../../context/AuthContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 
-const { width: windowWidth } = Dimensions.get("window");
-const MAX_CONTENT_WIDTH = 480;
-const width = Math.min(windowWidth, MAX_CONTENT_WIDTH);
-const itemWidth = (width - 48) / 3;
 const isWeb = Platform.OS === "web";
+
+const HERO_IMAGE_URL =
+  "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1800&auto=format&fit=crop";
 
 type CategoryType =
   | "Rice"
@@ -38,9 +39,37 @@ type CategoryType =
   | "Seafood"
   | string;
 
+// Responsive breakpoints — how many shop cards per row and how wide the
+// content area gets, based on the current window width.
+function getResponsiveLayout(winW: number) {
+  if (winW >= 1200) {
+    return { columns: 6, contentMaxWidth: 1180, gutter: 24, cardGap: 20 };
+  }
+  if (winW >= 900) {
+    return { columns: 5, contentMaxWidth: 900, gutter: 24, cardGap: 18 };
+  }
+  if (winW >= 700) {
+    return { columns: 4, contentMaxWidth: 700, gutter: 20, cardGap: 16 };
+  }
+  if (winW >= 480) {
+    return { columns: 3, contentMaxWidth: winW, gutter: 20, cardGap: 14 };
+  }
+  return { columns: 3, contentMaxWidth: winW, gutter: 16, cardGap: 12 };
+}
+
 export default function BuyerHomeScreen() {
   const { productTypes, loading, fetchProducts, shops, fetchNearShops } =
     useShop();
+  const { user } = useAuth();
+  const { width: winW } = useWindowDimensions();
+  const layout = getResponsiveLayout(winW);
+  const itemWidth =
+    (layout.contentMaxWidth -
+      layout.gutter * 2 -
+      layout.cardGap * (layout.columns - 1)) /
+    layout.columns;
+  const isNarrow = winW < 700;
+
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [address, setAddress] = useState("123 Main Street");
@@ -54,6 +83,8 @@ export default function BuyerHomeScreen() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const router = useRouter();
   const { lat, lng } = useLocalSearchParams();
+  const scrollRef = useRef<ScrollView>(null);
+  const [shopsSectionY, setShopsSectionY] = useState(0);
 
   const categoryIcons: Record<CategoryType, keyof typeof Ionicons.glyphMap> = {
     Rice: "restaurant-outline",
@@ -165,11 +196,18 @@ export default function BuyerHomeScreen() {
     setRefreshing(false);
   };
 
+  const scrollToShops = () => {
+    scrollRef.current?.scrollTo({ y: Math.max(shopsSectionY - 20, 0), animated: true });
+  };
+
   const renderLoadingShimmer = () => (
     <View style={styles.loadingContainer}>
       <View style={styles.shimmerContainer}>
         {[1, 2, 3, 4, 5, 6].map((item) => (
-          <View key={item} style={styles.shimmerItem}>
+          <View
+            key={item}
+            style={[styles.shimmerItem, { width: itemWidth }]}
+          >
             <View style={styles.shimmerImage} />
             <View style={styles.shimmerText} />
             <View style={styles.shimmerSmallText} />
@@ -191,87 +229,150 @@ export default function BuyerHomeScreen() {
   };
 
   return (
-    <View style={styles.pageBackdrop}>
-      <SafeAreaView style={styles.container}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 30 }}
+      >
+        {/* ---------- HERO ---------- */}
+        <ImageBackground
+          source={{ uri: HERO_IMAGE_URL }}
+          style={[styles.hero, { minHeight: isNarrow ? 420 : 460 }]}
+          resizeMode="cover"
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Image
-              source={require("../../assets/images/Register.png")}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
-            <View style={styles.iconRow}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => router.push(`(user)/search`)}
-              >
-                <Feather name="search" size={20} color="#222" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() =>
-                  Alert.alert(
-                    "Notifications",
-                    "You're all caught up — no new notifications yet."
-                  )
-                }
-              >
-                <Feather name="bell" size={20} color="#222" />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <LinearGradient
+            colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.75)"]}
+            style={StyleSheet.absoluteFill}
+          />
 
-          {/* Delivery location card */}
-          <TouchableOpacity
-            style={styles.locationCard}
-            activeOpacity={0.8}
-            onPress={() => router.push("/select-location-home")}
+          <View
+            style={[
+              styles.heroInner,
+              { maxWidth: layout.contentMaxWidth, paddingHorizontal: layout.gutter },
+            ]}
           >
-            <View style={styles.locationIconWrap}>
-              <Ionicons name="location" size={18} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.locationLabel}>Deliver to</Text>
-              {locationLoading ? (
-                <View style={styles.locationLoadingRow}>
-                  <ActivityIndicator size="small" color="#FF3366" />
-                  <Text style={styles.locationValueMuted}>
-                    Detecting your location...
-                  </Text>
+            {/* Nav bar */}
+            <View style={styles.navBar}>
+              <View style={styles.navLeft}>
+                <TouchableOpacity
+                  style={styles.menuButton}
+                  onPress={() => router.push("/(user)/profile")}
+                  >
+                  <Feather name="menu" size={20} color="#fff" />
+                </TouchableOpacity>
+                <Text style={styles.navLogo}>Local Plates</Text>
+              </View>
+
+              {user ? (
+                <View style={styles.navRight}>
+                  <TouchableOpacity
+                    style={styles.navIconButton}
+                    onPress={() => router.push(`(user)/search`)}
+                  >
+                    <Feather name="search" size={18} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.navIconButton}
+                    onPress={() =>
+                      Alert.alert(
+                        "Notifications",
+                        "You're all caught up — no new notifications yet."
+                      )
+                    }
+                  >
+                    <Feather name="bell" size={18} color="#fff" />
+                  </TouchableOpacity>
                 </View>
-              ) : locationError ? (
-                <Text style={styles.locationValueError}>{locationError}</Text>
               ) : (
-                <Text style={styles.locationValue} numberOfLines={1}>
-                  {address}, {city}
-                </Text>
+                <View style={styles.navRight}>
+                  <TouchableOpacity
+                    style={styles.loginBtn}
+                    onPress={() => router.push("/(auth)/login")}
+                  >
+                    <Text style={styles.loginBtnText}>Log in</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.signupBtn}
+                    onPress={() => router.push("/(auth)/register")}
+                  >
+                    <Text style={styles.signupBtnText}>Sign up</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
-            <View style={styles.changePill}>
-              <Text style={styles.changePillText}>Change</Text>
+
+            {/* Headline */}
+            <View style={styles.heroTextBlock}>
+              <Text
+                style={[styles.heroTitle, { fontSize: isNarrow ? 30 : 44 }]}
+              >
+                Order homemade food{"\n"}near you
+              </Text>
+              <Text style={styles.heroSubtitle}>
+                Fresh meals from local home cooks, delivered to your door
+              </Text>
             </View>
-          </TouchableOpacity>
 
-          {/* Greeting */}
-          <View style={styles.greetingContainer}>
-            <Text style={styles.greeting}>Good day! 👋</Text>
-            <Text style={styles.questionText}>
-              What would you like to eat today?
-            </Text>
+            {/* Address / search bar */}
+            <View
+              style={[
+                styles.heroSearchBar,
+                isNarrow && { flexDirection: "column", alignItems: "stretch" },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.heroAddressField}
+                onPress={() => router.push("/select-location-home")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="location-outline" size={18} color="#666" />
+                {locationLoading ? (
+                  <View style={styles.heroAddressLoadingRow}>
+                    <ActivityIndicator size="small" color="#FF3366" />
+                    <Text style={styles.heroAddressLoadingText}>
+                      Detecting location...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.heroAddressText} numberOfLines={1}>
+                    {locationError ? locationError : `${address}, ${city}`}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.findFoodBtn,
+                  isNarrow && { marginTop: 10, marginLeft: 0, width: "100%" },
+                ]}
+                onPress={scrollToShops}
+              >
+                <Text style={styles.findFoodBtnText}>Find Food</Text>
+              </TouchableOpacity>
+            </View>
+
+            {!user && (
+              <TouchableOpacity onPress={() => router.push("/(user)")}>
+                <Text style={styles.orGuestText}>
+                  Or continue as guest
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
+        </ImageBackground>
 
+        {/* ---------- BODY ---------- */}
+        <View
+          style={[
+            styles.contentWrap,
+            { maxWidth: layout.contentMaxWidth, paddingHorizontal: layout.gutter },
+          ]}
+        >
           {/* Category Selection */}
           <View style={styles.categorySection}>
             {loading ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.categoryScrollView}
-              >
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {[1, 2, 3, 4, 5].map((item) => (
                   <View
                     key={item}
@@ -280,15 +381,10 @@ export default function BuyerHomeScreen() {
                 ))}
               </ScrollView>
             ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.categoryScrollView}
-                contentContainerStyle={styles.categoryScrollContent}
-              >
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {productTypes.map((type) => (
                   <TouchableOpacity
-                  key={type}
+                    key={type}
                     style={[
                       styles.categoryButton,
                       selectedType === type && styles.selectedCategory,
@@ -298,7 +394,7 @@ export default function BuyerHomeScreen() {
                   >
                     <Ionicons
                       name={getCategoryIcon(type as CategoryType)}
-                      size={22}
+                      size={20}
                       color={selectedType === type ? "#fff" : "#FF3366"}
                     />
                     <Text
@@ -316,10 +412,13 @@ export default function BuyerHomeScreen() {
           </View>
 
           {/* Nearby Shops */}
-          <View style={styles.shopsSection}>
+          <View
+            style={styles.shopsSection}
+            onLayout={(e) => setShopsSectionY(e.nativeEvent.layout.y)}
+          >
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleContainer}>
-                <Ionicons name="location-outline" size={18} color="#FF3366" />
+                <Ionicons name="location-outline" size={17} color="#FF3366" />
                 <Text style={styles.sectionTitle}>Nearby homemade sellers</Text>
               </View>
               <TouchableOpacity
@@ -334,17 +433,17 @@ export default function BuyerHomeScreen() {
               renderLoadingShimmer()
             ) : shops.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="storefront-outline" size={30} color="#ccc" />
+                <Ionicons name="storefront-outline" size={28} color="#ccc" />
                 <Text style={styles.emptyStateText}>
                   No sellers found near you yet
                 </Text>
               </View>
             ) : (
-              <View style={styles.shopContainer}>
+              <View style={[styles.shopContainer, { gap: layout.cardGap }]}>
                 {shops.map((shop, index) => (
                   <TouchableOpacity
                     key={shop.uid}
-                    style={styles.shopItem}
+                    style={{ width: itemWidth, marginBottom: 20 }}
                     onPress={() => handleShopPress(shop.uid)}
                     activeOpacity={0.8}
                   >
@@ -364,13 +463,13 @@ export default function BuyerHomeScreen() {
                         >
                           <Ionicons
                             name={getFoodIcon(index)}
-                            size={30}
+                            size={26}
                             color="#fff"
                           />
                         </View>
                       )}
                       <LinearGradient
-                        colors={["transparent", "rgba(0,0,0,0.55)"]}
+                        colors={["transparent", "rgba(0,0,0,0.5)"]}
                         style={styles.imageGradient}
                       />
                     </View>
@@ -383,7 +482,7 @@ export default function BuyerHomeScreen() {
                     </Text>
                     <View style={styles.shopInfoRow}>
                       <View style={styles.ratingContainer}>
-                        <Ionicons name="star" size={13} color="#FFC107" />
+                        <Ionicons name="star" size={12} color="#FFC107" />
                         <Text style={styles.ratingText}>
                           {shop.rating || "4.5"}
                         </Text>
@@ -407,7 +506,7 @@ export default function BuyerHomeScreen() {
           <View style={styles.popularSection}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleContainer}>
-                <Ionicons name="flame-outline" size={18} color="#FF3366" />
+                <Ionicons name="flame-outline" size={17} color="#FF3366" />
                 <Text style={styles.sectionTitle}>Popular this week</Text>
               </View>
               <TouchableOpacity
@@ -426,16 +525,12 @@ export default function BuyerHomeScreen() {
               />
             ) : shops.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="flame-outline" size={30} color="#ccc" />
+                <Ionicons name="flame-outline" size={28} color="#ccc" />
                 <Text style={styles.emptyStateText}>Nothing trending yet</Text>
               </View>
             ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.popularScrollContent}
-              >
-                {shops.slice(0, 5).map((shop, index) => (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {shops.slice(0, 8).map((shop, index) => (
                   <TouchableOpacity
                     key={`popular-${shop.uid}`}
                     style={styles.popularItem}
@@ -456,13 +551,13 @@ export default function BuyerHomeScreen() {
                       >
                         <Ionicons
                           name={getFoodIcon(index + 5)}
-                          size={40}
+                          size={36}
                           color="#fff"
                         />
                       </View>
                     )}
                     <LinearGradient
-                      colors={["transparent", "rgba(0,0,0,0.65)"]}
+                      colors={["transparent", "rgba(0,0,0,0.6)"]}
                       style={styles.popularImageGradient}
                     />
                     <View style={styles.popularInfo}>
@@ -470,7 +565,7 @@ export default function BuyerHomeScreen() {
                         {shop.businessName}
                       </Text>
                       <View style={styles.popularSubInfo}>
-                        <Ionicons name="star" size={12} color="#FFC107" />
+                        <Ionicons name="star" size={11} color="#FFC107" />
                         <Text style={styles.popularRating}>
                           {shop.rating || "4.5"}
                         </Text>
@@ -482,9 +577,9 @@ export default function BuyerHomeScreen() {
               </ScrollView>
             )}
           </View>
-        </ScrollView>
-      </SafeAreaView>
-    </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -503,145 +598,161 @@ const getColorForIndex = (index: number): string => {
 };
 
 const styles = StyleSheet.create({
-  pageBackdrop: {
-    flex: 1,
-    backgroundColor: isWeb ? "#F2F2F5" : "#fff",
-  },
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  hero: {
     width: "100%",
-    maxWidth: MAX_CONTENT_WIDTH,
+    justifyContent: "flex-start",
+  },
+  heroInner: {
+    width: "100%",
     alignSelf: "center",
-    ...(isWeb
-      ? {
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.06,
-          shadowRadius: 20,
-        }
-      : {}),
+    flex: 1,
+    justifyContent: "space-between",
+    paddingTop: Platform.OS === "ios" ? 10 : 20,
+    paddingBottom: 24,
   },
-  scrollContent: {
-    paddingBottom: 30,
-  },
-  header: {
+  navBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
   },
-  logoImage: {
-    width: 120,
+  navLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  menuButton: {
+    width: 36,
     height: 36,
-  },
-  iconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#F5F5F7",
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  locationCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 16,
-    backgroundColor: "#FFF5F7",
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#FFE0E7",
-  },
-  locationIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#FF3366",
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
   },
-  locationLabel: {
-    fontSize: 11,
-    color: "#999",
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
+  navLogo: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
   },
-  locationValue: {
-    fontSize: 14,
-    color: "#222",
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  locationValueMuted: {
-    fontSize: 13,
-    color: "#777",
-    marginLeft: 6,
-  },
-  locationLoadingRow: {
+  navRight: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 3,
   },
-  locationValueError: {
-    fontSize: 13,
-    color: "#c0392b",
-    marginTop: 2,
-    fontWeight: "500",
+  navIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
   },
-  changePill: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  loginBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#FFD3DE",
+    borderColor: "#fff",
+    marginLeft: 8,
   },
-  changePillText: {
-    fontSize: 12,
+  loginBtnText: {
+    color: "#fff",
+    fontSize: 13,
     fontWeight: "700",
-    color: "#FF3366",
   },
-  greetingContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 6,
+  signupBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    marginLeft: 8,
   },
-  greeting: {
-    fontSize: 22,
+  signupBtnText: {
+    color: "#111",
+    fontSize: 13,
     fontWeight: "700",
-    color: "#1a1a1a",
-    marginBottom: 4,
   },
-  questionText: {
+  heroTextBlock: {
+    marginTop: 30,
+  },
+  heroTitle: {
+    color: "#fff",
+    fontWeight: "800",
+    lineHeight: 46,
+  },
+  heroSubtitle: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 15,
+    marginTop: 10,
+  },
+  heroSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 26,
+  },
+  heroAddressField: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  heroAddressText: {
+    marginLeft: 8,
+    color: "#222",
     fontSize: 14,
-    color: "#777",
+    fontWeight: "500",
+    flexShrink: 1,
+  },
+  heroAddressLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  heroAddressLoadingText: {
+    marginLeft: 6,
+    color: "#666",
+    fontSize: 13,
+    },
+  findFoodBtn: {
+    backgroundColor: "#111",
+    borderRadius: 10,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    marginLeft: 10,
+  },
+  findFoodBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  orGuestText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    marginTop: 14,
+    textDecorationLine: "underline",
+  },
+  contentWrap: {
+    width: "100%",
+    alignSelf: "center",
   },
   categorySection: {
-    marginTop: 18,
-  },
-  categoryScrollView: {
-    paddingLeft: 20,
-  },
-  categoryScrollContent: {
-    paddingRight: 20,
+    marginTop: 22,
   },
   categoryButton: {
     backgroundColor: "#FAFAFA",
-    padding: 14,
-    borderRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    width: 92,
-    height: 84,
+    width: 88,
+    height: 78,
     marginRight: 10,
     borderWidth: 1,
     borderColor: "#F0F0F0",
@@ -665,7 +776,6 @@ const styles = StyleSheet.create({
   },
   shopsSection: {
     marginTop: 26,
-    paddingHorizontal: 20,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -707,11 +817,6 @@ const styles = StyleSheet.create({
   shopContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  shopItem: {
-    width: itemWidth,
-    marginBottom: 20,
   },
   imageContainer: {
     position: "relative",
@@ -777,10 +882,9 @@ const styles = StyleSheet.create({
   shimmerContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    gap: 14,
   },
   shimmerItem: {
-    width: itemWidth,
     marginBottom: 20,
   },
   shimmerImage: {
@@ -808,11 +912,7 @@ const styles = StyleSheet.create({
   },
   popularSection: {
     marginTop: 26,
-    paddingHorizontal: 20,
     marginBottom: 10,
-  },
-  popularScrollContent: {
-    paddingRight: 20,
   },
   popularItem: {
     width: 150,
