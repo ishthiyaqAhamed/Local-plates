@@ -20,9 +20,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 
 const { width: windowWidth } = Dimensions.get("window");
-const MAX_CONTENT_WIDTH = 500;
+const MAX_CONTENT_WIDTH = 480;
 const width = Math.min(windowWidth, MAX_CONTENT_WIDTH);
 const itemWidth = (width - 48) / 3;
+const isWeb = Platform.OS === "web";
 
 type CategoryType =
   | "Rice"
@@ -103,7 +104,7 @@ export default function BuyerHomeScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        setLocationError("Location permission denied. Set your address manually.");
+        setLocationError("Permission denied — set address manually");
         setLocationLoading(false);
         return;
       }
@@ -117,7 +118,7 @@ export default function BuyerHomeScreen() {
       fetchNearShops(latitude, longitude);
     } catch (err) {
       console.error("Error getting location:", err);
-      setLocationError("Couldn't detect your location. Set it manually.");
+      setLocationError("Couldn't detect location — set manually");
     } finally {
       setLocationLoading(false);
     }
@@ -190,289 +191,300 @@ export default function BuyerHomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.header}>
-          <Image
-            source={require("../../assets/images/Register.png")}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-          <View style={styles.iconContainer}>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => router.push(`(user)/search`)}
-            >
-              <Feather name="search" size={22} color="#333" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() =>
-                Alert.alert("Notifications", "You're all caught up — no new notifications yet.")
-              }
-            >
-              <Feather name="bell" size={22} color="#333" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Delivery Location</Text>
-          <View style={styles.locationBox}>
-            <Ionicons
-              name="location-outline"
-              size={20}
-              color="#333"
-              style={styles.locationIcon}
+    <View style={styles.pageBackdrop}>
+      <SafeAreaView style={styles.container}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Image
+              source={require("../../assets/images/Register.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
             />
-            {locationLoading ? (
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <ActivityIndicator size="small" color="#333" style={{ marginRight: 8 }} />
-                <Text style={styles.locationText}>Detecting your location...</Text>
-              </View>
-            ) : locationError ? (
-              <Text style={[styles.locationText, { color: "#c0392b" }]}>
-                {locationError}
-              </Text>
+            <View style={styles.iconRow}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => router.push(`(user)/search`)}
+              >
+                <Feather name="search" size={20} color="#222" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() =>
+                  Alert.alert(
+                    "Notifications",
+                    "You're all caught up — no new notifications yet."
+                  )
+                }
+              >
+                <Feather name="bell" size={20} color="#222" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Delivery location card */}
+          <TouchableOpacity
+            style={styles.locationCard}
+            activeOpacity={0.8}
+            onPress={() => router.push("/select-location-home")}
+          >
+            <View style={styles.locationIconWrap}>
+              <Ionicons name="location" size={18} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locationLabel}>Deliver to</Text>
+              {locationLoading ? (
+                <View style={styles.locationLoadingRow}>
+                  <ActivityIndicator size="small" color="#FF3366" />
+                  <Text style={styles.locationValueMuted}>
+                    Detecting your location...
+                  </Text>
+                </View>
+              ) : locationError ? (
+                <Text style={styles.locationValueError}>{locationError}</Text>
+              ) : (
+                <Text style={styles.locationValue} numberOfLines={1}>
+                  {address}, {city}
+                </Text>
+              )}
+            </View>
+            <View style={styles.changePill}>
+              <Text style={styles.changePillText}>Change</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Greeting */}
+          <View style={styles.greetingContainer}>
+            <Text style={styles.greeting}>Good day! 👋</Text>
+            <Text style={styles.questionText}>
+              What would you like to eat today?
+            </Text>
+          </View>
+
+          {/* Category Selection */}
+          <View style={styles.categorySection}>
+            {loading ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.categoryScrollView}
+              >
+                {[1, 2, 3, 4, 5].map((item) => (
+                  <View
+                    key={item}
+                    style={[styles.categoryButton, styles.categoryButtonShimmer]}
+                  />
+                ))}
+              </ScrollView>
             ) : (
-              <Text style={styles.locationText}>
-                {address}, {city}
-              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.categoryScrollView}
+                contentContainerStyle={styles.categoryScrollContent}
+              >
+                {productTypes.map((type) => (
+                  <TouchableOpacity
+                  key={type}
+                    style={[
+                      styles.categoryButton,
+                      selectedType === type && styles.selectedCategory,
+                    ]}
+                    onPress={() => handleCategorySelect(type)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={getCategoryIcon(type as CategoryType)}
+                      size={22}
+                      color={selectedType === type ? "#fff" : "#FF3366"}
+                    />
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        selectedType === type && styles.selectedCategoryText,
+                      ]}
+                    >
+                      {type}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             )}
           </View>
-        </View>
-        <TouchableOpacity
-          onPress={() => router.push("/select-location-home")}
-          style={{
-            backgroundColor: "#000",
-            padding: 12,
-            borderRadius: 6,
-            alignItems: "center",
-            marginHorizontal: 16,
-            flexDirection: "row",
-            justifyContent: "center",
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "bold" }}>
-            Set Delivery Location on Map
-          </Text>
-        </TouchableOpacity>
 
-        <View style={styles.greetingContainer}>
-          <Text style={styles.greeting}>Good day!</Text>
-          <Text style={styles.questionText}>
-            WHAT WOULD YOU LIKE TO EAT TODAY?
-          </Text>
-        </View>
-
-        <View style={styles.categorySection}>
-          {loading ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.categoryScrollView}
-            >
-              {[1, 2, 3, 4, 5].map((item) => (
-                <View
-                  key={item}
-                  style={[styles.categoryButton, styles.categoryButtonShimmer]}
-                />
-              ))}
-            </ScrollView>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.categoryScrollView}
-              contentContainerStyle={styles.categoryScrollContent}
-            >
-              {productTypes.map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.categoryButton,
-                    selectedType === type && styles.selectedCategory,
-                  ]}
-                  onPress={() => handleCategorySelect(type)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={getCategoryIcon(type as CategoryType)}
-                    size={24}
-                    color={selectedType === type ? "#fff" : "#333"}
-                  />
-                  <Text
-                    style={[
-                      styles.categoryText,
-                      selectedType === type && styles.selectedCategoryText,
-                    ]}
-                  >
-                    {type}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        <View style={styles.shopsSection}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleContainer}>
-              <Ionicons name="location-outline" size={18} color="#FF3366" />
-              <Text style={styles.sectionTitle}>NEARBY HOMEMADE SELLERS</Text>
+          {/* Nearby Shops */}
+          <View style={styles.shopsSection}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <Ionicons name="location-outline" size={18} color="#FF3366" />
+                <Text style={styles.sectionTitle}>Nearby homemade sellers</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.viewAllButton}
+                onPress={() => router.push("/(user)/search")}
+              >
+                <Text style={styles.viewAllText}>View all</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.viewAllButton}
-              onPress={() => router.push("/(user)/search")}
-            >
-              <Text style={styles.viewAllText}>View all</Text>
-            </TouchableOpacity>
+
+            {loading ? (
+              renderLoadingShimmer()
+            ) : shops.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="storefront-outline" size={30} color="#ccc" />
+                <Text style={styles.emptyStateText}>
+                  No sellers found near you yet
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.shopContainer}>
+                {shops.map((shop, index) => (
+                  <TouchableOpacity
+                    key={shop.uid}
+                    style={styles.shopItem}
+                    onPress={() => handleShopPress(shop.uid)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.imageContainer}>
+                      {shop.photoURL ? (
+                        <Image
+                          source={{ uri: shop.photoURL }}
+                          style={styles.foodImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.foodImageFallback,
+                            { backgroundColor: getColorForIndex(index) },
+                          ]}
+                        >
+                          <Ionicons
+                            name={getFoodIcon(index)}
+                            size={30}
+                            color="#fff"
+                          />
+                        </View>
+                      )}
+                      <LinearGradient
+                        colors={["transparent", "rgba(0,0,0,0.55)"]}
+                        style={styles.imageGradient}
+                      />
+                    </View>
+                    <Text
+                      style={styles.shopName}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {shop.businessName}
+                    </Text>
+                    <View style={styles.shopInfoRow}>
+                      <View style={styles.ratingContainer}>
+                        <Ionicons name="star" size={13} color="#FFC107" />
+                        <Text style={styles.ratingText}>
+                          {shop.rating || "4.5"}
+                        </Text>
+                      </View>
+                      <View style={styles.distanceContainer}>
+                        <Ionicons
+                          name="location-outline"
+                          size={11}
+                          color="#999"
+                        />
+                        <Text style={styles.distanceText}>1.2 km</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
-          {loading ? (
-            renderLoadingShimmer()
-          ) : (
-            <View style={styles.shopContainer}>
-              {shops.map((shop, index) => (
-                <TouchableOpacity
-                  key={shop.uid}
-                  style={styles.shopItem}
-                  onPress={() => handleShopPress(shop.uid)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.imageContainer}>
+          {/* Popular This Week Section */}
+          <View style={styles.popularSection}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <Ionicons name="flame-outline" size={18} color="#FF3366" />
+                <Text style={styles.sectionTitle}>Popular this week</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.viewAllButton}
+                onPress={() => router.push("/(user)/search")}
+              >
+                <Text style={styles.viewAllText}>View all</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loading ? (
+              <ActivityIndicator
+                size="large"
+                color="#FF3366"
+                style={styles.loader}
+              />
+            ) : shops.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="flame-outline" size={30} color="#ccc" />
+                <Text style={styles.emptyStateText}>Nothing trending yet</Text>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.popularScrollContent}
+              >
+                {shops.slice(0, 5).map((shop, index) => (
+                  <TouchableOpacity
+                    key={`popular-${shop.uid}`}
+                    style={styles.popularItem}
+                    onPress={() => handleShopPress(shop.uid)}
+                    activeOpacity={0.8}
+                  >
                     {shop.photoURL ? (
                       <Image
                         source={{ uri: shop.photoURL }}
-                        style={styles.foodImage}
-                        resizeMode="cover"
+                        style={styles.popularImage}
                       />
                     ) : (
                       <View
                         style={[
-                          styles.foodImageFallback,
-                          { backgroundColor: getColorForIndex(index) },
+                          styles.popularImageFallback,
+                          { backgroundColor: getColorForIndex(index + 5) },
                         ]}
                       >
                         <Ionicons
-                          name={getFoodIcon(index)}
-                          size={32}
+                          name={getFoodIcon(index + 5)}
+                          size={40}
                           color="#fff"
                         />
                       </View>
                     )}
                     <LinearGradient
-                      colors={["transparent", "rgba(0,0,0,0.7)"]}
-                      style={styles.imageGradient}
+                      colors={["transparent", "rgba(0,0,0,0.65)"]}
+                      style={styles.popularImageGradient}
                     />
-                  </View>
-                  <Text
-                    style={styles.shopName}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {shop.businessName}
-                  </Text>
-                  <View style={styles.shopInfoRow}>
-                    <View style={styles.ratingContainer}>
-                      <Ionicons name="star" size={14} color="#FFC107" />
-                      <Text style={styles.ratingText}>
-                        {shop.rating || "4.5"}
+                    <View style={styles.popularInfo}>
+                      <Text style={styles.popularName} numberOfLines={1}>
+                        {shop.businessName}
                       </Text>
+                      <View style={styles.popularSubInfo}>
+                        <Ionicons name="star" size={12} color="#FFC107" />
+                        <Text style={styles.popularRating}>
+                          {shop.rating || "4.5"}
+                        </Text>
+                        <Text style={styles.popularCategory}>• Homemade</Text>
+                      </View>
                     </View>
-                    <View style={styles.distanceContainer}>
-                      <Ionicons
-                        name="location-outline"
-                        size={12}
-                        color="#777"
-                      />
-                      <Text style={styles.distanceText}>1.2 km</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.popularSection}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleContainer}>
-              <Ionicons name="flame-outline" size={18} color="#FF3366" />
-              <Text style={styles.sectionTitle}>POPULAR THIS WEEK</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.viewAllButton}
-              onPress={() => router.push("/(user)/search")}
-            >
-              <Text style={styles.viewAllText}>View all</Text>
-            </TouchableOpacity>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
-
-          {loading ? (
-            <ActivityIndicator
-              size="large"
-              color="#FF3366"
-              style={styles.loader}
-            />
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.popularScrollContent}
-            >
-              {shops.slice(0, 5).map((shop, index) => (
-                <TouchableOpacity
-                  key={`popular-${shop.uid}`}
-                  style={styles.popularItem}
-                  onPress={() => handleShopPress(shop.uid)}
-                  activeOpacity={0.8}
-                >
-                  {shop.photoURL ? (
-                    <Image
-                      source={{ uri: shop.photoURL }}
-                      style={styles.popularImage}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.popularImageFallback,
-                        { backgroundColor: getColorForIndex(index + 5) },
-                      ]}
-                    >
-                      <Ionicons
-                        name={getFoodIcon(index + 5)}
-                        size={42}
-                        color="#fff"
-                      />
-                    </View>
-                  )}
-                  <LinearGradient
-                    colors={["transparent", "rgba(0,0,0,0.7)"]}
-                    style={styles.popularImageGradient}
-                  />
-                  <View style={styles.popularInfo}>
-                    <Text style={styles.popularName} numberOfLines={1}>
-                      {shop.businessName}
-                    </Text>
-                    <View style={styles.popularSubInfo}>
-                      <Ionicons name="star" size={12} color="#FFC107" />
-                      <Text style={styles.popularRating}>
-                        {shop.rating || "4.5"}
-                      </Text>
-                      <Text style={styles.popularCategory}>• Homemade</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -491,109 +503,159 @@ const getColorForIndex = (index: number): string => {
 };
 
 const styles = StyleSheet.create({
+  pageBackdrop: {
+    flex: 1,
+    backgroundColor: isWeb ? "#F2F2F5" : "#fff",
+  },
   container: {
     flex: 1,
     backgroundColor: "#fff",
+    width: "100%",
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: "center",
+    ...(isWeb
+      ? {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.06,
+          shadowRadius: 20,
+        }
+      : {}),
   },
   scrollContent: {
-    paddingBottom: 20,
-    width: "100%",
-    maxWidth: 500,
-    alignSelf: "center",
+    paddingBottom: 30,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   logoImage: {
     width: 120,
-    height: 40,
+    height: 36,
   },
-  iconContainer: {
+  iconRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#f5f5f5",
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#F5F5F7",
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+  },
+  locationCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    backgroundColor: "#FFF5F7",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#FFE0E7",
+  },
+  locationIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FF3366",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  locationLabel: {
+    fontSize: 11,
+    color: "#999",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  locationValue: {
+    fontSize: 14,
+    color: "#222",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  locationValueMuted: {
+    fontSize: 13,
+    color: "#777",
+    marginLeft: 6,
+  },
+  locationLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 3,
+  },
+  locationValueError: {
+    fontSize: 13,
+    color: "#c0392b",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  changePill: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#FFD3DE",
+  },
+  changePillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FF3366",
   },
   greetingContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 6,
   },
   greeting: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#333",
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1a1a1a",
     marginBottom: 4,
   },
   questionText: {
     fontSize: 14,
-    fontWeight: "bold",
-    color: "#555",
-    letterSpacing: 0.5,
+    color: "#777",
   },
   categorySection: {
-    marginTop: 16,
+    marginTop: 18,
   },
   categoryScrollView: {
-    paddingLeft: 16,
+    paddingLeft: 20,
   },
   categoryScrollContent: {
-    paddingRight: 16,
+    paddingRight: 20,
   },
   categoryButton: {
-    backgroundColor: "#f8f8f8",
-    padding: 16,
-    borderRadius: 16,
+    backgroundColor: "#FAFAFA",
+    padding: 14,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    width: 100,
-    height: 90,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-    marginRight: 12,
+    width: 92,
+    height: 84,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   categoryButtonShimmer: {
     backgroundColor: "#f0f0f0",
   },
   selectedCategory: {
     backgroundColor: "#FF3366",
+    borderColor: "#FF3366",
   },
   categoryText: {
-    fontSize: 12,
-    fontWeight: "bold",
+    fontSize: 11,
+    fontWeight: "700",
     marginTop: 8,
     textAlign: "center",
     color: "#333",
@@ -602,36 +664,45 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   shopsSection: {
-    marginTop: 24,
-    paddingHorizontal: 16,
+    marginTop: 26,
+    paddingHorizontal: 20,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   sectionTitleContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    letterSpacing: 0.5,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#222",
     marginLeft: 6,
   },
   viewAllButton: {
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 12,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#F5F5F7",
   },
   viewAllText: {
     fontSize: 12,
     color: "#555",
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 30,
+  },
+  emptyStateText: {
+    fontSize: 13,
+    color: "#999",
+    marginTop: 8,
   },
   shopContainer: {
     flexDirection: "row",
@@ -644,30 +715,19 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     position: "relative",
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.15,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
   },
   foodImage: {
     width: "100%",
-    height: 110,
-    borderRadius: 16,
+    height: 100,
+    borderRadius: 14,
     backgroundColor: "#f0f0f0",
   },
   foodImageFallback: {
     width: "100%",
-    height: 110,
-    borderRadius: 16,
+    height: 100,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -676,24 +736,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 40,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-  promotedTag: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: "#FF3366",
+    height: 36,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
   },
   shopName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     marginTop: 8,
-    color: "#333",
+    color: "#222",
   },
   shopInfoRow: {
     flexDirection: "row",
@@ -706,18 +757,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   ratingText: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#555",
-    marginLeft: 4,
-    fontWeight: "500",
+    marginLeft: 3,
+    fontWeight: "600",
   },
   distanceContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
   distanceText: {
-    fontSize: 12,
-    color: "#777",
+    fontSize: 11,
+    color: "#999",
     marginLeft: 2,
   },
   loadingContainer: {
@@ -734,19 +785,19 @@ const styles = StyleSheet.create({
   },
   shimmerImage: {
     width: "100%",
-    height: 110,
-    borderRadius: 16,
+    height: 100,
+    borderRadius: 14,
     backgroundColor: "#f0f0f0",
   },
   shimmerText: {
-    height: 16,
+    height: 14,
     width: "80%",
     marginTop: 8,
     backgroundColor: "#f0f0f0",
     borderRadius: 4,
   },
   shimmerSmallText: {
-    height: 12,
+    height: 10,
     width: "50%",
     marginTop: 6,
     backgroundColor: "#f0f0f0",
@@ -755,54 +806,22 @@ const styles = StyleSheet.create({
   loader: {
     marginVertical: 20,
   },
-  section: {
-    marginBottom: 16,
-    backgroundColor: "#fff",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  locationBox: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-    padding: 12,
-    borderRadius: 8,
-  },
-  locationIcon: {
-    marginRight: 8,
-  },
-  locationText: {
-    color: "#333",
-    fontSize: 15,
-  },
   popularSection: {
-    marginTop: 24,
-    paddingHorizontal: 16,
-    marginBottom: 20,
+    marginTop: 26,
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
   popularScrollContent: {
-    paddingRight: 16,
+    paddingRight: 20,
   },
   popularItem: {
-    width: 160,
-    height: 200,
+    width: 150,
+    height: 190,
     borderRadius: 16,
     overflow: "hidden",
-    marginRight: 14,
+    marginRight: 12,
     position: "relative",
     backgroundColor: "#f0f0f0",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.15,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
   },
   popularImage: {
     width: "100%",
@@ -821,7 +840,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 80,
+    height: 76,
   },
   popularInfo: {
     position: "absolute",
@@ -830,8 +849,8 @@ const styles = StyleSheet.create({
     right: 10,
   },
   popularName: {
-    fontSize: 15,
-    fontWeight: "bold",
+    fontSize: 14,
+    fontWeight: "700",
     color: "#fff",
   },
   popularSubInfo: {
@@ -840,13 +859,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   popularRating: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#fff",
     marginLeft: 4,
     marginRight: 6,
+    fontWeight: "600",
   },
   popularCategory: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#eee",
   },
 });
