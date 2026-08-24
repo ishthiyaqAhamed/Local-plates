@@ -498,4 +498,253 @@ export default function BuyerHomeScreen() {
                         />
                         <Text style={styles.distanceText}>1.2 km</Text>
                       </View>
-                      
+                                          </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Popular This Week Section */}
+          <View style={styles.popularSection}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <Ionicons name="flame-outline" size={17} color="#FF3366" />
+                <Text style={styles.sectionTitle}>Popular this week</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.viewAllButton}
+                onPress={() => router.push("/(user)/search")}
+              >
+                <Text style={styles.viewAllText}>View all</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loading ? (
+              <ActivityIndicator
+                size="large"
+                color="#FF3366"
+                style={styles.loader}
+              />
+            ) : shops.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="flame-outline" size={28} color="#ccc" />
+                <Text style={styles.emptyStateText}>Nothing trending yet</Text>
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {shops.slice(0, 8).map((shop, index) => (
+                  <TouchableOpacity
+                    key={`popular-${shop.uid}`}
+                    style={styles.popularItem}
+                    onPress={() => handleShopPress(shop.uid)}
+                    activeOpacity={0.8}
+                  >
+                    {shop.photoURL ? (
+                      <Image
+                        source={{ uri: shop.photoURL }}
+                        style={styles.popularImage}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.popularImageFallback,
+                          { backgroundColor: getColorForIndex(index + 5) },
+                        ]}
+                      >
+                        <Ionicons
+                          name={getFoodIcon(index + 5)}
+                          size={36}
+                          color="#fff"
+                        />
+                      </View>
+                    )}
+                    <LinearGradient
+                      colors={["transparent", "rgba(0,0,0,0.6)"]}
+                      style={styles.popularImageGradient}
+                    />
+                    <View style={styles.popularInfo}>
+                      <Text style={styles.popularName} numberOfLines={1}>
+                        {shop.businessName}
+                      </Text>
+                      <View style={styles.popularSubInfo}>
+                        <Ionicons name="star" size={11} color="#FFC107" />
+                        <Text style={styles.popularRating}>
+                          {shop.rating || "4.5"}
+                        </Text>
+                        <Text style={styles.popularCategory}>• Homemade</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const getColorForIndex = (index: number): string => {
+  const colors = [
+    "#FF3366",
+    "#3498DB",
+    "#2ECC71",
+    "#F39C12",
+    "#9B59B6",
+    "#E74C3C",
+    "#1ABC9C",
+    "#34495E",
+  ];
+  return colors[index % colors.length];
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  hero: {
+    width: "100%",
+    justifyContent: "flex-start",
+  },
+  heroInner: {
+    width: "100%",
+    alignSelf: "center",
+    flex: 1,
+    justifyContent: "space-between",
+    paddingTop: Platform.OS === "ios" ? 10 : 20,
+    paddingBottom: 24,
+  },
+  navBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  navLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  menuButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  navLogo: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  navRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  navIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  loginBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#fff",
+    marginLeft: 8,
+  },
+  loginBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  signupBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    marginLeft: 8,
+  },
+  signupBtnText: {
+    color: "#111",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  heroTextBlock: {
+    marginTop: 30,
+  },
+  heroTitle: {
+    color: "#fff",
+    fontWeight: "800",
+    lineHeight: 46,
+  },
+  heroSubtitle: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 15,
+    marginTop: 10,
+  },
+  heroSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 26,
+  },
+  heroAddressField: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  heroAddressText: {
+    marginLeft: 8,
+    color: "#222",
+    fontSize: 14,
+    fontWeight: "500",
+    flexShrink: 1,
+  },
+  heroAddressLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  heroAddressLoadingText: {
+    marginLeft: 6,
+    color: "#666",
+    fontSize: 13,
+  },
+  findFoodBtn: {
+    backgroundColor: "#111",
+    borderRadius: 10,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    marginLeft: 10,
+  },
+  findFoodBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  orGuestText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    marginTop: 14,
+    textDecorationLine: "underline",
+  },
+  contentWrap: {
+    width: "100%",
+    alignSelf: "center",
+  },
+  categorySection: {
+    marginTop: 22,
+  },
+  categoryButton: {
