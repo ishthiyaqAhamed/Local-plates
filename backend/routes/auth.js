@@ -143,6 +143,8 @@ router.post("/login", async (req, res) => {
 });
 
 // ---------- Google sign-in (clients only) ----------
+// Client sends the Google ID token it received from Google's sign-in flow.
+// This route verifies it server-side, then finds or creates the user.
 router.post("/google", async (req, res) => {
   try {
     const { idToken } = req.body;
@@ -171,6 +173,7 @@ router.post("/google", async (req, res) => {
         emailVerified: !!payload.email_verified,
       });
     } else if (!user.googleId) {
+      // Existing email/password account signing in with Google for the first time
       user.googleId = payload.sub;
       await user.save();
     }
@@ -194,6 +197,80 @@ router.get("/me", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Get current user error:", error);
     res.status(500).json({ error: "Failed to fetch user" });
+  }
+});
+
+// ---------- Update profile ----------
+router.patch("/me", requireAuth, async (req, res) => {
+  try {
+    const allowedFields = [
+      "displayName",
+      "phoneNumber",
+      "photoURL",
+      "address",
+      "city",
+      "province",
+      "zipCode",
+      "businessName",
+      "businessType",
+      "location",
+    ];
+
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    const user = await User.findByIdAndUpdate(req.auth.uid, updates, {
+      new: true,
+    });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ user: toPublicUser(user) });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
+// ---------- Change password ----------
+router.post("/change-password", requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ error: "Current and new password are required" });
+    }
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ error: "New password must be at least 8 characters" });
+    }
+
+    const user = await User.findById(req.auth.uid).select("+password");
+    if (!user || !user.password) {
+      return res
+        .status(400)
+        .json({ error: "Password change isn't available for this account" });
+    }
+
+    const match = await bcrypt.compare(currentPassword, user.password);
+    if (!match) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Change password error:", error);
+    res.status(500).json({ error: "Failed to change password" });
   }
 });
 
