@@ -5,15 +5,11 @@ import React, {
   useContext,
   ReactNode,
 } from "react";
-import { db } from "../services/firebase";
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  collection,
-  getDocs,
-} from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
+
+const API_BASE_URL = "https://local-plates-backend.onrender.com/api";
+const TOKEN_KEY = "local_plates_token";
 
 interface ShopProfile {
   uid: string;
@@ -79,14 +75,10 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
   const fetchShops = async () => {
     try {
       setLoading(true);
-      const shopCollection = collection(db, "users");
-      const shopSnapshot = await getDocs(shopCollection);
-      const shopList: ShopProfile[] = shopSnapshot.docs
-        .map((doc) => ({ uid: doc.id, ...doc.data() } as ShopProfile))
-        .filter((shop) => shop.userType === "seller"); // Fetch only sellers
-
-      console.log("Shop List:", shopList);
-      setShops(shopList);
+      const res = await fetch(`${API_BASE_URL}/shops`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch shops");
+      setShops(data.shops);
     } catch (error) {
       console.error("Error fetching shops:", error);
     } finally {
@@ -96,17 +88,14 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
 
   const fetchProducts = async () => {
     try {
-      const productsCollection = collection(db, "products");
-      const productsSnapshot = await getDocs(productsCollection);
-      const productsList: Product[] = productsSnapshot.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() } as Product)
-      );
-      setProducts(productsList);
+      const res = await fetch(`${API_BASE_URL}/products`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch products");
+      setProducts(data.products);
 
-      // Extract unique product types
       const uniqueTypes = Array.from(
-        new Set(productsList.map((product) => product.type))
-      );
+        new Set(data.products.map((product: Product) => product.type))
+      ) as string[];
       setProductTypes(uniqueTypes);
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -115,25 +104,10 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
 
   const fetchShopProfile = async (uid: string): Promise<ShopProfile | null> => {
     try {
-      const shopDoc = await getDoc(doc(db, "users", uid));
-      if (shopDoc.exists()) {
-        const shopData = shopDoc.data();
-        return {
-          uid,
-          businessName: shopData.businessName || "Unknown Shop",
-          businessType: shopData.businessType || "Unknown",
-          address: shopData.address || "No address",
-          city: shopData.city || "Unknown",
-          province: shopData.province || "Unknown",
-          zipCode: shopData.zipCode || "00000",
-          phone: shopData.phone || "No phone",
-          email: shopData.email || "No email",
-          rating: shopData.rating || 0,
-          photoURL: shopData.images || [],
-          createdAt: shopData.createdAt,
-        };
-      }
-      return null;
+      const res = await fetch(`${API_BASE_URL}/shops/${uid}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.shop;
     } catch (error) {
       console.error("Error fetching shop profile:", error);
       return null;
@@ -166,16 +140,11 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
   const fetchNearShops = async (userLat?: number, userLng?: number) => {
     try {
       setLoading(true);
-      const shopCollection = collection(db, "users");
-      const shopSnapshot = await getDocs(shopCollection);
+      const res = await fetch(`${API_BASE_URL}/shops`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch shops");
 
-      const shopList: ShopProfile[] = shopSnapshot.docs
-        .map((doc) => ({ uid: doc.id, ...doc.data() } as ShopProfile))
-        .filter((shop) => shop.userType === "seller");
-      console.log("Shop List:", shopList);
-
-      console.log("User Coordinates:", userLat, userLng);
-      console.log("Shop Coordinates:", shopList.map((shop) => shop.location));
+      const shopList: ShopProfile[] = data.shops;
 
       // Filter by 5km if location is available
       const filteredShops =
@@ -191,8 +160,6 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
               return dist <= 5;
             })
           : shopList;
-
-      console.log("Filtered Shops:", filteredShops);
 
       setShops(filteredShops);
     } catch (error) {
@@ -216,10 +183,17 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
       throw new Error("No authenticated user found");
     }
     try {
-      await updateDoc(doc(db, "users", user.uid), {
-        ...data,
-        updatedAt: new Date(),
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      const res = await fetch(`${API_BASE_URL}/auth/me`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
       });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to update shop profile");
       setShop((prev) => (prev ? { ...prev, ...data } : null));
     } catch (error) {
       console.error("Error updating shop profile:", error);
