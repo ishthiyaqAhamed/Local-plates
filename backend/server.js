@@ -3,6 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/auth");
+const productRoutes = require("./routes/products");
+const shopRoutes = require("./routes/shops");
 
 const app = express();
 
@@ -14,6 +16,8 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/shops", shopRoutes);
 
 const PORT = process.env.PORT || 5000;
 
