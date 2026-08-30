@@ -1,261 +1,276 @@
-import React, { createContext, useState, useEffect, useContext } from "react";
-import { auth, db } from "../services/firebase";
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  updateProfile,
-} from "firebase/auth";
-import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
-import { router } from "expo-router";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform, Alert } from "react-native";
+import { useRouter } from "expo-router";
 
-type UserProfile = {
+const API_BASE_URL = "https://local-plates-backend.onrender.com/api/auth";
+const GOOGLE_CLIENT_ID =
+  "246121547978-bp1flso095a1j2oj0fh6t366aig4pf91.apps.googleusercontent.com";
+const TOKEN_KEY = "local_plates_token";
+
+export interface UserProfile {
   uid: string;
-  email: string | null;
+  email: string;
   displayName: string | null;
-  userType: "seller" | "user" | null;
+  userType: "user" | "seller";
   phoneNumber: string | null;
   photoURL: string | null;
-  address?: string;
-  city?: string;
-  province?: string;
-  zipCode?: string;
-  businessName?: string;
-  businessType?: string;
+  businessName?: string | null;
+  businessType?: string | null;
+  address?: string | null;
+  city?: string | null;
+  province?: string | null;
+  zipCode?: string | null;
+  location?: { latitude: number | null; longitude: number | null };
   rating?: number;
-};
+  emailVerified?: boolean;
+}
 
-type AuthContextType = {
+interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   registerUser: (
     email: string,
     password: string,
-    userData: any
+    extra?: { phoneNumber?: string; displayName?: string }
   ) => Promise<void>;
   registerSeller: (
     email: string,
     password: string,
-    sellerData: any
+    extra: {
+      phoneNumber?: string;
+      businessName: string;
+      businessType?: string;
+      address: string;
+      city: string;
+      province?: string;
+      zipCode?: string;
+      displayName?: string;
+      location?: { latitude: number | null; longitude: number | null };
+    }
   ) => Promise<void>;
-  updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
   logout: () => Promise<void>;
-  refreshUserProfile: () => Promise<void>;
-};
+  updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+// Loads Google's Identity Services script once, on web only.
+function loadGoogleScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const w = window as any;
+    if (w.google?.accounts?.id) {
+      resolve();
+      return;
+    }
+    const existing = document.getElementById("google-identity-script");
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "google-identity-script";
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Google script"));
+    document.head.appendChild(script);
+  });
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const fetchUserProfile = async (uid: string): Promise<UserProfile | null> => {
-    try {
-      const userDoc = await getDoc(doc(db, "users", uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        return {
-          uid,
-          email: userData.email || null,
-          displayName: userData.displayName || null,
-          userType: userData.userType || null,
-          phoneNumber: userData.phoneNumber || null,
-          photoURL: userData.photoURL || null,
-          address: userData.address,
-          city: userData.city,
-          province: userData.province,
-          zipCode: userData.zipCode,
-          businessName: userData.businessName,
-          businessType: userData.businessType,
-          rating: userData.rating || 0,
-        };
-      }
-      return null;
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-      return null;
-    }
-  };
+  const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userProfile = await fetchUserProfile(firebaseUser.uid);
-        if (userProfile) {
-          setUser(userProfile);
-        } else {
-          // Basic profile if Firestore data is not available
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            userType: null,
-            phoneNumber: firebaseUser.phoneNumber,
-            photoURL: firebaseUser.photoURL,
-          });
-        }
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    rehydrateSession();
   }, []);
 
-  const refreshUserProfile = async () => {
-    if (user && user.uid) {
-      const refreshedProfile = await fetchUserProfile(user.uid);
-      if (refreshedProfile) {
-        setUser(refreshedProfile);
+  async function rehydrateSession() {
+    try {
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      if (!token) {
+        setLoading(false);
+        return;
       }
+      const res = await fetch(`${API_BASE_URL}/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user);
+      } else {
+        await AsyncStorage.removeItem(TOKEN_KEY);
+      }
+    } catch (error) {
+      console.error("Session rehydrate error:", error);
+    } finally {
+      setLoading(false);
     }
-  };
+  }
+
+  async function saveSession(token: string, userData: UserProfile) {
+    await AsyncStorage.setItem(TOKEN_KEY, token);
+    setUser(userData);
+  }
 
   const login = async (email: string, password: string) => {
-    try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      if (result.user) {
-        const userProfile = await fetchUserProfile(result.user.uid);
-        if (userProfile) {
-          if (userProfile.userType === "seller") {
-            router.replace("/(seller)");
-          }
-          if (userProfile.userType === "user") {
-            router.replace("/(user)");
-          }
-
-        }
-        
-
-      }
-      
-    } catch (error) {
-      console.error("Login error:", error);
-      throw error;
-    }
+    const res = await fetch(`${API_BASE_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Login failed");
+    await saveSession(data.token, data.user);
+    router.replace(data.user.userType === "seller" ? "/(seller)" : "/(user)");
   };
 
   const registerUser = async (
     email: string,
     password: string,
-    userData: any
+    extra?: { phoneNumber?: string; displayName?: string }
   ) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const uid = userCredential.user.uid;
-
-      // Update display name in Firebase Auth
-      if (userData.displayName) {
-        await updateProfile(userCredential.user, {
-          displayName: userData.displayName,
-        });
-      }
-
-      // Create user document in Firestore
-      await setDoc(doc(db, "users", uid), {
-        uid,
-        email,
-        displayName: userData.displayName || email.split("@")[0],
-        userType: "user",
-        phoneNumber: userData.phoneNumber || null,
-        photoURL: userData.photoURL || null,
-        createdAt: new Date(),
-        ...userData,
-      });
-    } catch (error) {
-      console.error("Register error:", error);
-      throw error;
-    }
+    const res = await fetch(`${API_BASE_URL}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, ...extra }),
+    });
+    const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Registration failed");
+    await saveSession(data.token, data.user);
   };
 
   const registerSeller = async (
     email: string,
     password: string,
-    sellerData: any
+    extra: {
+      phoneNumber?: string;
+      businessName: string;
+      businessType?: string;
+      address: string;
+      city: string;
+      province?: string;
+      zipCode?: string;
+      displayName?: string;
+      location?: { latitude: number | null; longitude: number | null };
+    }
   ) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
+    const res = await fetch(`${API_BASE_URL}/register-seller`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, ...extra }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Registration failed");
+    await saveSession(data.token, data.user);
+  };
+
+  const loginWithGoogle = async () => {
+    if (Platform.OS !== "web") {
+      Alert.alert(
+        "Not available yet",
+        "Google Sign-In on the mobile app needs a bit more setup on our end. Please use the web version for now, or register with email."
       );
-      const uid = userCredential.user.uid;
+      return;
+    }
 
-      // Update display name in Firebase Auth
-      if (sellerData.businessName) {
-        await updateProfile(userCredential.user, {
-          displayName: sellerData.businessName,
+    try {
+      await loadGoogleScript();
+      const google = (window as any).google;
+
+      await new Promise<void>((resolve, reject) => {
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: async (response: any) => {
+            try {
+              const idToken = response.credential;
+              const res = await fetch(`${API_BASE_URL}/google`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "Google sign-in failed");
+              await saveSession(data.token, data.user);
+              router.replace(
+                data.user.userType === "seller" ? "/(seller)" : "/(user)"
+              );
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          },
         });
-      }
 
-      // Create seller document in Firestore
-      await setDoc(doc(db, "users", uid), {
-        uid,
-        email,
-        displayName: sellerData.businessName || email.split("@")[0],
-        userType: "seller",
-        phoneNumber: sellerData.phone || null,
-        photoURL: sellerData.photoURL || null,
-        businessName: sellerData.businessName || null,
-        businessType: sellerData.businessType || "Food Seller",
-        address: sellerData.address || null,
-        city: sellerData.city || null,
-        province: sellerData.province || null,
-        zipCode: sellerData.zipCode || null,
-        rating: 0,
-        createdAt: new Date(),
-        ...sellerData,
+        google.accounts.id.prompt((notification: any) => {
+          if (
+            notification.isNotDisplayed?.() ||
+            notification.isSkippedMoment?.()
+          ) {
+            reject(new Error("dismissed"));
+          }
+        });
       });
-    } catch (error) {
-      console.error("Register seller error:", error);
-      throw error;
+    } catch (error: any) {
+      if (error?.message !== "dismissed") {
+        console.error("Google login error:", error);
+        Alert.alert(
+          "Sign-in failed",
+          "Could not sign in with Google. Please try again."
+        );
+      }
     }
   };
 
-  const updateUserProfile = async (data: Partial<UserProfile>) => {
-    if (!user || !user.uid) {
-      throw new Error("No authenticated user found");
-    }
+  const updateUserProfile = async (updates: Partial<UserProfile>) => {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) throw new Error("Not logged in");
 
-    try {
-      // Update Firestore user document
-      await updateDoc(doc(db, "users", user.uid), {
-        ...data,
-        updatedAt: new Date(),
-      });
+    const res = await fetch(`${API_BASE_URL}/me`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(updates),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to update profile");
+    setUser(data.user);
+  };
 
-      // Update Auth profile if displayName or photoURL is changing
-      if (auth.currentUser && (data.displayName || data.photoURL)) {
-        await updateProfile(auth.currentUser, {
-          displayName: data.displayName || auth.currentUser.displayName,
-          photoURL: data.photoURL || auth.currentUser.photoURL,
-        });
-      }
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) throw new Error("Not logged in");
 
-      // Update local state
-      setUser((prev) => (prev ? { ...prev, ...data } : null));
-    } catch (error) {
-      console.error("Error updating user profile:", error);
-      throw error;
-    }
+    const res = await fetch(`${API_BASE_URL}/change-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to change password");
   };
 
   const logout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error("Logout error:", error);
-      throw error;
-    }
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    setUser(null);
+    router.replace("/(auth)/login");
   };
 
   return (
@@ -264,22 +279,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         user,
         loading,
         login,
+        loginWithGoogle,
         registerUser,
         registerSeller,
-        updateUserProfile,
-        refreshUserProfile,
         logout,
+        updateUserProfile,
+        changePassword,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-};
+}

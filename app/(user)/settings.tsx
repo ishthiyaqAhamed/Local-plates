@@ -16,23 +16,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import {
-  getAuth,
-  updatePassword,
-  EmailAuthProvider,
-  reauthenticateWithCredential,
-} from "firebase/auth";
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from "firebase/storage";
-import { storage } from "../../services/firebase";
+
+const CLOUDINARY_CLOUD_NAME = "ekhkrbth";
+const CLOUDINARY_UPLOAD_PRESET = "local_plates_unsigned";
+const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 export default function BuyerSettingsScreen() {
   const router = useRouter();
-  const { user, logout, updateUserProfile } = useAuth();
+  const { user, logout, updateUserProfile, changePassword } = useAuth();
   const [loading, setLoading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
 
@@ -106,37 +97,14 @@ export default function BuyerSettingsScreen() {
 
     try {
       setLoading(true);
-      const auth = getAuth();
-      const user = auth.currentUser;
-
-      if (!user || !user.email) {
-        throw new Error("User not found");
-      }
-
-      // Re-authenticate user before changing password
-      const credential = EmailAuthProvider.credential(
-        user.email,
-        currentPassword
-      );
-      await reauthenticateWithCredential(user, credential);
-
-      // Update password
-      await updatePassword(user, newPassword);
+      await changePassword(currentPassword, newPassword);
 
       Alert.alert("Success", "Password updated successfully");
       setPasswordModalVisible(false);
       resetPasswordFields();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Change password error:", error);
-
-      if (
-        error instanceof Error &&
-        (error as any).code === "auth/wrong-password"
-      ) {
-        Alert.alert("Error", "Current password is incorrect");
-      } else {
-        Alert.alert("Error", "Failed to update password. Please try again.");
-      }
+      Alert.alert("Error", error.message || "Failed to update password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -185,43 +153,31 @@ export default function BuyerSettingsScreen() {
     try {
       setPhotoUploading(true);
 
-      // Convert image URI to blob
-      const response = await fetch(profilePhoto.uri);
-      const blob = await response.blob();
+      const formData = new FormData();
+      // @ts-ignore - React Native's fetch FormData accepts this shape for file uploads
+      formData.append("file", {
+        uri: profilePhoto.uri,
+        type: "image/jpeg",
+        name: `profile_${user.uid}_${Date.now()}.jpg`,
+      });
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-      // Create unique filename for the profile photo
-      const filename = `profile_${user.uid}_${Date.now()}.jpg`;
-      const storageRef = ref(storage, `profiles/${filename}`);
+      const res = await fetch(CLOUDINARY_UPLOAD_URL, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
 
-      // Delete previous profile photo if exists
-      if (user.photoURL) {
-        try {
-          const urlPath = user.photoURL.split("?")[0];
-          const storagePath = urlPath.split("profiles/")[1];
-
-          if (storagePath) {
-            const oldImageRef = ref(storage, `profiles/${storagePath}`);
-            await deleteObject(oldImageRef);
-          }
-        } catch (error) {
-          console.error("Error deleting old profile photo:", error);
-          // Continue even if old photo deletion fails
-        }
+      if (!res.ok || !data.secure_url) {
+        throw new Error(data.error?.message || "Upload failed");
       }
 
-      // Upload to Firebase Storage
-      await uploadBytes(storageRef, blob);
-
-      // Get download URL
-      const downloadUrl = await getDownloadURL(storageRef);
-      setPhotoURL(downloadUrl);
-
-      return downloadUrl;
+      setPhotoURL(data.secure_url);
+      return data.secure_url;
     } catch (error) {
       console.error("Error uploading profile photo:", error);
       Alert.alert("Error", "Failed to upload profile photo. Please try again.");
-      return null;
-    } finally {
+      return null;    } finally {
       setPhotoUploading(false);
     }
   };
@@ -248,7 +204,6 @@ export default function BuyerSettingsScreen() {
         province,
         zipCode,
         photoURL: updatedPhotoURL,
-        updatedAt: new Date(),
       };
 
       await updateUserProfile(updatedProfile);
@@ -441,8 +396,7 @@ export default function BuyerSettingsScreen() {
         visible={profileModalVisible}
         onRequestClose={() => setProfileModalVisible(false)}
       >
-        <ScrollView contentContainerStyle={styles.modalContainer}>
-          <View style={styles.modalContent}>
+        <ScrollView contentContainerStyle={styles.modalContainer}>          <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Profile</Text>
 
             {/* Profile Photo Picker */}
@@ -602,7 +556,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
-  },
+      },
   userName: {
     fontSize: 18,
     fontWeight: "bold",
