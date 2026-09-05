@@ -5,25 +5,13 @@ import React, {
   useContext,
   ReactNode,
 } from "react";
-import { db } from "../services/firebase";
-import {
-  doc,
-  collection,
-  addDoc,
-  updateDoc,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  DocumentReference,
-} from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
 import { useCart } from "./cartContext";
-import { Product } from "./shopContext";
 
-// Define the order status enum
+const API_BASE_URL = "https://local-plates-backend.onrender.com/api/orders";
+const TOKEN_KEY = "local_plates_token";
+
 export enum OrderStatus {
   PENDING = "pending",
   PROCESSING = "processing",
@@ -32,7 +20,6 @@ export enum OrderStatus {
   CANCELLED = "cancelled",
 }
 
-// Define the order item interface (each product in an order)
 export interface OrderItem {
   productId: string;
   name: string;
@@ -43,7 +30,6 @@ export interface OrderItem {
   images?: string[];
 }
 
-// Define the delivery information interface
 export interface DeliveryInfo {
   address: string;
   city: string;
@@ -58,7 +44,6 @@ export interface DeliveryInfo {
   };
 }
 
-// Define the order interface
 export interface Order {
   id?: string;
   userId: string;
@@ -76,7 +61,6 @@ export interface Order {
   updatedAt: any;
 }
 
-// Define the order summary for UI display
 export interface OrderSummary {
   id: string;
   total: number;
@@ -85,7 +69,6 @@ export interface OrderSummary {
   itemCount: number;
 }
 
-// Define the order context type
 interface OrderContextType {
   orders: Order[];
   userOrders: OrderSummary[];
@@ -104,10 +87,16 @@ interface OrderContextType {
   cancelOrder: (orderId: string) => Promise<void>;
 }
 
-// Create the order context
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
-// Create the order provider component
+async function authHeaders() {
+  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 export const OrderProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
@@ -120,13 +109,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Calculate app fee function
-  const calculateAppFee = (subtotal: number): number => {
-    // Fixed app fee for simplicity
-    return 50;
-  };
-
-  // Place a new order
   const placeOrder = async (
     deliveryInfo: DeliveryInfo,
     paymentType: string = "Cash on Delivery"
@@ -145,7 +127,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     setError(null);
 
     try {
-      // Prepare order items from cart
       const orderItems: OrderItem[] = cart.map((item) => ({
         productId: item.id,
         name: item.name,
@@ -156,88 +137,46 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
         images: item.images || [],
       }));
 
-      // Calculate totals
-      const subtotal = getTotalAmount();
-      const appFee = calculateAppFee(subtotal);
-      const total = subtotal + appFee + deliveryInfo.deliveryCharge;
+      const res = await fetch(API_BASE_URL, {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          items: orderItems,
+          deliveryInfo,
+          paymentType,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to place order");
 
-      // Create the order object
-      const newOrder: Omit<Order, "id"> = {
-        userId: user.uid,
-        userName: user.displayName || "Anonymous User",
-        userEmail: user.email || "No email provided",
-        items: orderItems,
-        subtotal,
-        appFee,
-        total,
-        deliveryInfo,
-        status: OrderStatus.PENDING,
-        paymentType,
-        paymentStatus: "pending",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      console.log("New Order:", newOrder);
-
-      // Save the order to Firestore
-      const orderRef = await addDoc(collection(db, "orders"), newOrder);
-
-      // Create order-items subcollection to make querying by seller easier
-      for (const item of orderItems) {
-        await addDoc(collection(db, "orders", orderRef.id, "items"), {
-          ...item,
-          orderId: orderRef.id,
-          orderDate: newOrder.createdAt,
-          orderStatus: newOrder.status,
-        });
-      }
-
-      // Get the newly created order
-      const orderWithId: Order = {
-        ...newOrder,
-        id: orderRef.id,
-      };
-
-      // Update state
-      setOrders((prevOrders) => [...prevOrders, orderWithId]);
-      setCurrentOrder(orderWithId);
-
-      // Clear the cart
+      const order: Order = data.order;
+      setOrders((prev) => [...prev, order]);
+      setCurrentOrder(order);
       clearCart();
 
-      // Return the order ID
-      return orderRef.id;
+      return order.id || null;
     } catch (err) {
       console.error("Error placing order:", err);
       setError("Failed to place order. Please try again.");
-      return null;
+            return null;
     } finally {
       setLoading(false);
     }
   };
 
-  // Get a specific order by ID
   const getOrderById = async (orderId: string): Promise<Order | null> => {
     setLoading(true);
     setError(null);
 
     try {
-      const orderDoc = await getDoc(doc(db, "orders", orderId));
+      const res = await fetch(`${API_BASE_URL}/${orderId}`, {
+        headers: await authHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Order not found");
 
-      if (orderDoc.exists()) {
-        const orderData = orderDoc.data() as Omit<Order, "id">;
-        const order: Order = {
-          ...orderData,
-          id: orderId,
-        };
-
-        setCurrentOrder(order);
-        return order;
-      }
-
-      setError("Order not found");
-      return null;
+      setCurrentOrder(data.order);
+      return data.order;
     } catch (err) {
       console.error("Error getting order:", err);
       setError("Failed to get order. Please try again.");
@@ -247,7 +186,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Get all orders for the current user
   const getUserOrders = async (): Promise<void> => {
     if (!user) {
       setError("User must be logged in to view orders");
@@ -258,37 +196,23 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     setError(null);
 
     try {
-      const q = query(
-        collection(db, "orders"),
-        where("userId", "==", user.uid),
-        orderBy("createdAt", "desc")
-      );
+      const res = await fetch(`${API_BASE_URL}/user/me`, {
+        headers: await authHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load orders");
 
-      const querySnapshot = await getDocs(q);
-      const fetchedOrders: Order[] = [];
-      const fetchedOrderSummaries: OrderSummary[] = [];
-
-      querySnapshot.forEach((doc) => {
-        const data = doc.data() as Omit<Order, "id">;
-        const order: Order = {
-          ...data,
-          id: doc.id,
-        };
-
-        fetchedOrders.push(order);
-
-        // Create summary for UI
-        fetchedOrderSummaries.push({
-          id: doc.id,
+      const fetchedOrders: Order[] = data.orders;
+      setOrders(fetchedOrders);
+      setUserOrders(
+        fetchedOrders.map((order) => ({
+          id: order.id!,
           total: order.total,
           status: order.status,
           date: order.createdAt,
           itemCount: order.items.length,
-        });
-      });
-
-      setOrders(fetchedOrders);
-      setUserOrders(fetchedOrderSummaries);
+        }))
+      );
     } catch (err) {
       console.error("Error getting user orders:", err);
       setError("Failed to load orders. Please try again.");
@@ -297,7 +221,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Get all orders for the current seller
   const getSellerOrders = async (): Promise<void> => {
     if (!user) {
       setError("Seller must be logged in to view orders");
@@ -308,48 +231,13 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     setError(null);
 
     try {
-      // Get all orders
-      const ordersRef = collection(db, "orders");
-      const querySnapshot = await getDocs(ordersRef);
-      const fetchedSellerOrders: OrderSummary[] = [];
-
-      // Process each order document
-      for (const doc of querySnapshot.docs) {
-        const orderData = doc.data() as Omit<Order, "id">;
-
-        // Check if any items in this order belong to the current seller
-        const sellerItems = orderData.items.filter(
-          (item) => item.sellerId === user.uid
-        );
-
-        // If this order contains items from the current seller
-        if (sellerItems.length > 0) {
-          // Calculate total for only this seller's items
-          const sellerTotal = sellerItems.reduce(
-            (sum, item) => sum + item.price * item.quantity,
-            0
-          );
-
-          // Create an order summary for the seller's view
-          fetchedSellerOrders.push({
-            id: doc.id,
-            total: sellerTotal,
-            status: orderData.status,
-            date: orderData.createdAt,
-            itemCount: sellerItems.length,
-          });
-        }
-      }
-
-      // Sort orders by date (newest first)
-      fetchedSellerOrders.sort((a, b) => {
-        // Convert Firebase timestamps to JS Date objects if needed
-        const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
-        const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
-        return dateB.getTime() - dateA.getTime();
+      const res = await fetch(`${API_BASE_URL}/seller/me`, {
+        headers: await authHeaders(),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load seller orders");
 
-      setSellerOrders(fetchedSellerOrders);
+      setSellerOrders(data.orders);
     } catch (err) {
       console.error("Error getting seller orders:", err);
       setError("Failed to load seller orders. Please try again.");
@@ -358,7 +246,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Update the status of an order
   const updateOrderStatus = async (
     orderId: string,
     status: OrderStatus
@@ -367,12 +254,14 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     setError(null);
 
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        status,
-        updatedAt: serverTimestamp(),
+      const res = await fetch(`${API_BASE_URL}/${orderId}/status`, {
+        method: "PATCH",
+        headers: await authHeaders(),
+        body: JSON.stringify({ status }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update order status");
 
-      // Update local state
       setOrders((prevOrders) =>
         prevOrders.map((order) =>
           order.id === orderId ? { ...order, status } : order
@@ -383,7 +272,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
         setCurrentOrder({ ...currentOrder, status });
       }
 
-      // Update order summary lists
       setUserOrders((prevSummaries) =>
         prevSummaries.map((summary) =>
           summary.id === orderId ? { ...summary, status } : summary
@@ -403,17 +291,14 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Cancel an order
   const cancelOrder = async (orderId: string): Promise<void> => {
     await updateOrderStatus(orderId, OrderStatus.CANCELLED);
   };
 
-  // Load user orders when user changes
   useEffect(() => {
     if (user) {
       getUserOrders();
     } else {
-      // Clear orders when user logs out
       setOrders([]);
       setUserOrders([]);
       setSellerOrders([]);
@@ -421,7 +306,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [user]);
 
-  // Provide the context
   return (
     <OrderContext.Provider
       value={{
@@ -444,11 +328,10 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
   );
 };
 
-// Create the useOrder hook
 export const useOrder = () => {
   const context = useContext(OrderContext);
   if (!context) {
     throw new Error("useOrder must be used within an OrderProvider");
   }
   return context;
-};
+}; 
