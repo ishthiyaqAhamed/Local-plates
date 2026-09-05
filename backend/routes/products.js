@@ -45,6 +45,20 @@ router.get("/seller/:sellerId", async (req, res) => {
   }
 });
 
+// ---------- Get one product ----------
+router.get("/:id", async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    res.json({ product: toPublicProduct(product) });
+  } catch (error) {
+    console.error("Get product error:", error);
+    res.status(500).json({ error: "Failed to fetch product" });
+  }
+});
+
 // ---------- Create a product (seller only) ----------
 router.post("/", requireAuth, async (req, res) => {
   try {
