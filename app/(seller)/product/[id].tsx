@@ -13,9 +13,10 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
-import { db, storage } from "../../../services/firebase";
-import { ref, deleteObject } from "firebase/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const API_BASE_URL = "https://local-plates-backend.onrender.com/api";
+const TOKEN_KEY = "local_plates_token";
 
 // Get screen dimensions
 const { width } = Dimensions.get("window");
@@ -54,23 +55,11 @@ export default function ProductDetailScreen() {
 
     try {
       setLoading(true);
-      const productDoc = await getDoc(doc(db, "products", id.toString()));
+      const res = await fetch(`${API_BASE_URL}/products/${id}`);
+      const data = await res.json();
 
-      if (productDoc.exists()) {
-        const productData = productDoc.data();
-        setProduct({
-          id: productDoc.id,
-          ...productData,
-          // Ensure all required fields have default values if missing
-          name: productData.name || "",
-          type: productData.type || "",
-          price: productData.price || 0,
-          quantity: productData.quantity || 0,
-          sellerId: productData.sellerId || "",
-          images: productData.images || [],
-          available:
-            productData.available !== undefined ? productData.available : true,
-        } as ProductData);
+      if (res.ok) {
+        setProduct(data.product);
       } else {
         Alert.alert("Error", "Product not found");
         router.back();
@@ -90,10 +79,17 @@ export default function ProductDetailScreen() {
       setUpdating(true);
 
       const newAvailability = !product.available;
-      await updateDoc(doc(db, "products", product.id), {
-        available: newAvailability,
-        updatedAt: new Date(),
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      const res = await fetch(`${API_BASE_URL}/products/${product.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ available: newAvailability }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update availability");
 
       setProduct({ ...product, available: newAvailability });
       Alert.alert(
@@ -126,40 +122,14 @@ export default function ProductDetailScreen() {
             try {
               setUpdating(true);
 
-              // Delete associated images from Storage
-              if (product.images && product.images.length > 0) {
-                try {
-                  // For each image URL, try to delete the file from storage
-                  const deletePromises = product.images.map(
-                    async (imageUrl) => {
-                      try {
-                        // Extract the path from the URL
-                        const urlPath = imageUrl.split("?")[0]; // Remove query parameters
-                        const storagePath = urlPath.split("products/")[1];
+              const token = await AsyncStorage.getItem(TOKEN_KEY);
+              const res = await fetch(`${API_BASE_URL}/products/${product.id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "Failed to delete product");
 
-                        if (storagePath) {
-                          const imageRef = ref(
-                            storage,
-                            `products/${storagePath}`
-                          );
-                          await deleteObject(imageRef);
-                        }
-                      } catch (imageError) {
-                        console.error("Error deleting image:", imageError);
-                        // Continue even if one image fails to delete
-                      }
-                    }
-                  );
-
-                  await Promise.all(deletePromises);
-                } catch (imagesError) {
-                  console.error("Error deleting images:", imagesError);
-                  // Continue with product deletion even if image deletion fails
-                }
-              }
-
-              // Delete the document from Firestore
-              await deleteDoc(doc(db, "products", product.id));
               Alert.alert("Success", "Product deleted successfully");
               router.push("/(seller)/products");
             } catch (error) {
@@ -182,8 +152,7 @@ export default function ProductDetailScreen() {
     setSelectedImageIndex(index);
   };
 
-  if (loading) {
-    return (
+  if (loading) {    return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FF3366" />
@@ -347,8 +316,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  loadingText: {
-    marginTop: 10,
+  loadingText: {    marginTop: 10,
     color: "#666",
   },
   errorContainer: {
@@ -487,8 +455,7 @@ const styles = StyleSheet.create({
   },
   descriptionContainer: {
     marginBottom: 20,
-  },
-  descriptionLabel: {
+  },  descriptionLabel: {
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 8,
