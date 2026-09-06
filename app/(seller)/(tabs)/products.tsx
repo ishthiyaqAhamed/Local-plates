@@ -14,16 +14,10 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  deleteDoc,
-  doc,
-} from "firebase/firestore";
-import { db, storage } from "../../../services/firebase";
-import { ref, deleteObject } from "firebase/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const API_BASE_URL = "https://local-plates-backend.onrender.com/api";
+const TOKEN_KEY = "local_plates_token";
 
 // Define TypeScript interface for product data
 interface ProductData {
@@ -74,34 +68,30 @@ export default function ProductsScreen() {
 
     try {
       setLoading(true);
-      const productsRef = collection(db, "products");
-      const q = query(productsRef, where("sellerId", "==", user.uid));
-      const querySnapshot = await getDocs(q);
+      const res = await fetch(`${API_BASE_URL}/products/seller/${user.uid}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch products");
 
-      const productsList: ProductData[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        productsList.push({
-          id: doc.id,
-          name: data.name || "",
-          type: data.type || "",
-          price: data.price || 0,
-          quantity: data.quantity || 0,
-          description: data.description,
-          images: data.images || [],
-          sellerId: data.sellerId,
-          sellerName: data.sellerName,
-          sellerLocation: data.sellerLocation,
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt,
-          available: data.available !== undefined ? data.available : true,
-        });
-      });
+      const productsList: ProductData[] = data.products.map((p: any) => ({
+        id: p.id,
+        name: p.name || "",
+        type: p.type || "",
+        price: p.price || 0,
+        quantity: p.quantity || 0,
+        description: p.description,
+        images: p.images || [],
+        sellerId: p.sellerId,
+        sellerName: p.sellerName,
+        sellerLocation: p.sellerLocation,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        available: p.available !== undefined ? p.available : true,
+      }));
 
       // Sort by most recently created first
       productsList.sort((a, b) => {
         if (!a.createdAt || !b.createdAt) return 0;
-        return b.createdAt.seconds - a.createdAt.seconds;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
 
       setProducts(productsList);
@@ -134,48 +124,13 @@ export default function ProductsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              // Get the product data to delete its images
-              const productToDelete = products.find(
-                (product) => product.id === productId
-              );
-
-              // Delete the document from Firestore
-              await deleteDoc(doc(db, "products", productId));
-
-              // Delete associated images from Storage
-              if (
-                productToDelete?.images &&
-                productToDelete.images.length > 0
-              ) {
-                try {
-                  // For each image URL, try to delete the file from storage
-                  const deletePromises = productToDelete.images.map(
-                    async (imageUrl) => {
-                      try {
-                        // Extract the path from the URL
-                        const urlPath = imageUrl.split("?")[0]; // Remove query parameters
-                        const storagePath = urlPath.split("products/")[1];
-
-                        if (storagePath) {
-                          const imageRef = ref(
-                            storage,
-                            `products/${storagePath}`
-                          );
-                          await deleteObject(imageRef);
-                        }
-                      } catch (error) {
-                        console.error("Error deleting image:", error);
-                        // Continue even if one image fails to delete
-                      }
-                    }
-                  );
-
-                  await Promise.all(deletePromises);
-                } catch (error) {
-                  console.error("Error deleting images:", error);
-                  // Continue with product deletion even if image deletion fails
-                }
-              }
+              const token = await AsyncStorage.getItem(TOKEN_KEY);
+              const res = await fetch(`${API_BASE_URL}/products/${productId}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "Failed to delete product");
 
               // Update local state
               const updatedProducts = products.filter(
@@ -202,8 +157,7 @@ export default function ProductsScreen() {
     >
       <View style={styles.productImageContainer}>
         {item.images && item.images.length > 0 ? (
-          <Image
-            source={{ uri: item.images[0] }}
+          <Image            source={{ uri: item.images[0] }}
             style={styles.productImage}
             resizeMode="cover"
           />
@@ -362,8 +316,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },    shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
