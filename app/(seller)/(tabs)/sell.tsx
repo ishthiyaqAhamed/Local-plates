@@ -13,11 +13,15 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db, storage } from "../../../services/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const API_BASE_URL = "https://local-plates-backend.onrender.com/api";
+const TOKEN_KEY = "local_plates_token";
+const CLOUDINARY_CLOUD_NAME = "ekhkrbth";
+const CLOUDINARY_UPLOAD_PRESET = "local_plates_unsigned";
+const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 export default function SellScreen() {
   const router = useRouter();
@@ -95,30 +99,33 @@ export default function SellScreen() {
   };
 
   const uploadImagesToFirebase = async () => {
-    const imageUrls = [];
-    const validImages = images.filter((img) => img !== null);
+    const imageUrls: string[] = [];
+    const validImages = images.filter(
+      (img): img is ImagePicker.ImagePickerAsset => img !== null
+    );
     let uploaded = 0;
 
-    // Loop through all selected images and upload them
     for (const image of validImages) {
       try {
-        // Convert image URI to blob
-        const response = await fetch(image.uri);
-        const blob = await response.blob();
+        const formData = new FormData();
+        // @ts-ignore - React Native's fetch FormData accepts this shape for file uploads
+        formData.append("file", {
+          uri: image.uri,
+          type: "image/jpeg",
+          name: `${user?.uid ?? "unknown_user"}_${Date.now()}_${uploaded}.jpg`,
+        });
+        formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-        // Create unique filename
-        const filename = `${
-          user?.uid ?? "unknown_user"
-        }_${Date.now()}_${uploaded}.jpg`;
-        const storageRef = ref(storage, `products/${filename}`);
+        const res = await fetch(CLOUDINARY_UPLOAD_URL, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.secure_url) {
+          throw new Error(data.error?.message || "Upload failed");
+        }
 
-        // Upload to Firebase Storage
-        await uploadBytes(storageRef, blob);
-
-        // Get download URL
-        const downloadUrl = await getDownloadURL(storageRef);
-        imageUrls.push(downloadUrl);
-
+        imageUrls.push(data.secure_url);
         uploaded++;
         setUploadProgress(Math.floor((uploaded / validImages.length) * 100));
       } catch (error) {
@@ -150,26 +157,28 @@ export default function SellScreen() {
     try {
       setSubmitting(true);
 
-      // Upload images to Firebase Storage
-      const imageUrls = await uploadImagesToFirebase();
+            const imageUrls = await uploadImagesToFirebase();
 
-      // Add product to Firestore with image URLs
-      const productData = {
-        name: foodName.trim(),
-        type: foodType.trim(),
-        price: parseFloat(price),
-        quantity: parseInt(quantity),
-        description: about.trim(),
-        images: imageUrls,
-        sellerId: user.uid,
-        sellerName: user.businessName || user.displayName,
-        sellerLocation: user.city || "",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        available: true,
-      };
-
-      await addDoc(collection(db, "products"), productData);
+      // Add product via backend API with image URLs
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      const res = await fetch(`${API_BASE_URL}/products`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: foodName.trim(),
+          type: foodType.trim(),
+          price: parseFloat(price),
+          quantity: parseInt(quantity),
+          description: about.trim(),
+          images: imageUrls,
+          available: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add product");
 
       Alert.alert("Success", "Product added successfully!", [
         {
@@ -307,8 +316,7 @@ export default function SellScreen() {
               <ActivityIndicator color="white" size="small" />
             ) : (
               <Text style={styles.sellButtonText}>SELL</Text>
-            )}
-          </TouchableOpacity>
+            )}          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>

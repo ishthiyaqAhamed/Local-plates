@@ -12,9 +12,9 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { collection, query, getDocs, orderBy, where } from "firebase/firestore";
-import { db } from "../../services/firebase";
 import * as Haptics from "expo-haptics";
+
+const API_BASE_URL = "https://local-plates-backend.onrender.com/api";
 
 // Define Product interface based on your Firestore structure
 interface Product {
@@ -66,15 +66,13 @@ export default function SearchScreen() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const productsRef = collection(db, "products");
-      // Only get available products
-      const q = query(productsRef, orderBy("name"));
-      const querySnapshot = await getDocs(q);
+      const res = await fetch(`${API_BASE_URL}/products`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch products");
 
-      const productsList: Product[] = [];
-      querySnapshot.forEach((doc) => {
-        productsList.push({ id: doc.id, ...doc.data() } as Product);
-      });
+      const productsList: Product[] = data.products.sort((a: Product, b: Product) =>
+        a.name.localeCompare(b.name)
+      );
 
       setProducts(productsList);
       setFilteredProducts(productsList);
@@ -189,8 +187,7 @@ export default function SearchScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.productsList}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <Text style={styles.resultsCount}>
+          ListHeaderComponent={            <Text style={styles.resultsCount}>
               {filteredProducts.length} items found
             </Text>
           }
