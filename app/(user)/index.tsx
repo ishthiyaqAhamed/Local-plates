@@ -39,8 +39,6 @@ type CategoryType =
   | "Seafood"
   | string;
 
-// Responsive breakpoints — how many shop cards per row and how wide the
-// content area gets, based on the current window width.
 function getResponsiveLayout(winW: number) {
   if (winW >= 1200) {
     return { columns: 6, contentMaxWidth: 1180, gutter: 24, cardGap: 20 };
@@ -84,7 +82,52 @@ export default function BuyerHomeScreen() {
   const router = useRouter();
   const { lat, lng } = useLocalSearchParams();
   const scrollRef = useRef<ScrollView>(null);
+  const promoScrollRef = useRef<ScrollView>(null);
   const [shopsSectionY, setShopsSectionY] = useState(0);
+  const [promoIndex, setPromoIndex] = useState(0);
+  const [selectedDiet, setSelectedDiet] = useState<string | null>(null);
+
+  const promos = [
+    {
+      title: "20% off your first order",
+      subtitle: "New to Local Plates? Get a discount on your first meal",
+      icon: "gift-outline" as const,
+      colors: ["#FF3366", "#FF6B8B"] as const,
+    },
+    {
+      title: "Free delivery today",
+      subtitle: "Orders over LKR 1,500 qualify for free delivery",
+      icon: "bicycle-outline" as const,
+      colors: ["#3498DB", "#5DADE2"] as const,
+    },
+    {
+      title: "Support local home cooks",
+      subtitle: "Every order helps a home-based seller grow their business",
+      icon: "heart-outline" as const,
+      colors: ["#9B59B6", "#BB8FCE"] as const,
+    },
+  ];
+
+  const dietaryTags = ["Vegetarian", "Vegan", "Halal", "Spicy", "Non-Veg"];
+
+  const handleDietPress = (tag: string) => {
+    setSelectedDiet(tag);
+    router.push({ pathname: "/(user)/search", params: { q: tag } });
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPromoIndex((prev) => {
+        const next = (prev + 1) % promos.length;
+        promoScrollRef.current?.scrollTo({
+          x: next * (winW < 700 ? winW - 40 : 340),
+          animated: true,
+        });
+        return next;
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [winW]);
 
   const categoryIcons: Record<CategoryType, keyof typeof Ionicons.glyphMap> = {
     Rice: "restaurant-outline",
@@ -114,8 +157,7 @@ export default function BuyerHomeScreen() {
       const selectedLng = parseFloat(lng as string);
 
       setLatitude(selectedLat);
-      setLongitude(selectedLng);
-      setLocationLoading(false);
+      setLongitude(selectedLng);      setLocationLoading(false);
       setLocationError(null);
 
       reverseGeocode(selectedLat, selectedLng);
@@ -243,7 +285,7 @@ export default function BuyerHomeScreen() {
         >
           <LinearGradient
             colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.75)"]}
-                        style={StyleSheet.absoluteFill}
+            style={StyleSheet.absoluteFill}
           />
 
           <View
@@ -268,14 +310,7 @@ export default function BuyerHomeScreen() {
                 <View style={styles.navRight}>
                   <TouchableOpacity
                     style={styles.navIconButton}
-                    onPress={() => router.push(`(user)/search`)}
-                  >
-                    <Feather name="search" size={18} color="#fff" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.navIconButton}
-                    onPress={() =>
-                      Alert.alert(
+                    onPress={() =>                      Alert.alert(
                         "Notifications",
                         "You're all caught up — no new notifications yet."
                       )
@@ -372,6 +407,131 @@ export default function BuyerHomeScreen() {
             { maxWidth: layout.contentMaxWidth, paddingHorizontal: layout.gutter },
           ]}
         >
+          {/* Promo Carousel */}
+          <View style={styles.promoSection}>
+            <ScrollView
+              ref={promoScrollRef}
+              horizontal
+              pagingEnabled={isNarrow}
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) => {
+                const cardWidth = isNarrow ? winW - 40 : 340;
+                const index = Math.round(e.nativeEvent.contentOffset.x / cardWidth);
+                setPromoIndex(index);
+              }}
+            >
+              {promos.map((promo, i) => (
+                <LinearGradient
+                  key={i}
+                  colors={promo.colors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[
+                    styles.promoCard,
+                    { width: isNarrow ? winW - 40 : 320 },
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.promoTitle}>{promo.title}</Text>
+                    <Text style={styles.promoSubtitle}>{promo.subtitle}</Text>
+                  </View>
+                  <Ionicons name={promo.icon} size={32} color="rgba(255,255,255,0.9)" />
+                </LinearGradient>
+              ))}
+            </ScrollView>
+            <View style={styles.promoDots}>
+              {promos.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.promoDot,
+                    i === promoIndex && styles.promoDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+
+          {/* Trust stats bar */}
+          <View style={styles.statsBar}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>500+</Text>
+              <Text style={styles.statLabel}>Orders delivered</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>50+</Text>
+              <Text style={styles.statLabel}>Home sellers</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>4.8★</Text>
+              <Text style={styles.statLabel}>Average rating</Text>
+            </View>
+          </View>          {/* How it works — guests only */}
+          {!user && (
+            <View style={styles.howItWorksSection}>
+              <Text style={styles.howItWorksTitle}>How it works</Text>
+              <View
+                style={[
+                  styles.howItWorksSteps,
+                  isNarrow && { flexDirection: "column" },
+                ]}
+              >
+                {[
+                  {
+                    icon: "search-outline" as const,
+                    title: "Browse",
+                    desc: "Explore homemade food from sellers near you",
+                  },
+                  {
+                    icon: "cart-outline" as const,
+                    title: "Order",
+                    desc: "Pick your meal and check out in a few taps",
+                  },
+                  {
+                    icon: "bicycle-outline" as const,
+                    title: "Enjoy",
+                    desc: "Get it delivered fresh to your door",
+                  },
+                ].map((step, i) => (
+                  <View key={i} style={styles.howItWorksStep}>
+                    <View style={styles.howItWorksIconWrap}>
+                      <Ionicons name={step.icon} size={22} color="#FF3366" />
+                    </View>
+                    <Text style={styles.howItWorksStepTitle}>{step.title}</Text>
+                    <Text style={styles.howItWorksStepDesc}>{step.desc}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Dietary quick-filters */}
+          <View style={styles.dietSection}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {dietaryTags.map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  style={[
+                    styles.dietChip,
+                    selectedDiet === tag && styles.dietChipSelected,
+                  ]}
+                  onPress={() => handleDietPress(tag)}
+                >
+                  <Text
+                    style={[
+                      styles.dietChipText,
+                      selectedDiet === tag && styles.dietChipTextSelected,
+                    ]}
+                  >
+                    {tag}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
           {/* Category Selection */}
           <View style={styles.categorySection}>
             {loading ? (
@@ -467,8 +627,7 @@ export default function BuyerHomeScreen() {
                           <Ionicons
                             name={getFoodIcon(index)}
                             size={26}
-                            color="#fff"
-                          />
+                            color="#fff"                          />
                         </View>
                       )}
                       <LinearGradient
@@ -498,7 +657,7 @@ export default function BuyerHomeScreen() {
                         />
                         <Text style={styles.distanceText}>1.2 km</Text>
                       </View>
-                                          </View>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -568,7 +727,7 @@ export default function BuyerHomeScreen() {
                         {shop.businessName}
                       </Text>
                       <View style={styles.popularSubInfo}>
-                        <Ionicons name="star" size={11} color="#FFC107" />
+                        <Ionicons name="star" size={12} color="#FFC107" />
                         <Text style={styles.popularRating}>
                           {shop.rating || "4.5"}
                         </Text>
@@ -627,8 +786,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   menuButton: {
-    width: 36,
-    height: 36,
+    width: 36,    height: 36,
     borderRadius: 18,
     backgroundColor: "rgba(255,255,255,0.15)",
     justifyContent: "center",
@@ -744,10 +902,143 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
+  promoSection: {
+    marginTop: 20,
+  },
+  promoCard: {
+    borderRadius: 16,
+    padding: 18,
+    marginRight: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 90,
+  },
+  promoTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  promoSubtitle: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  promoDots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  promoDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#e0e0e0",
+    marginHorizontal: 3,
+  },
+  promoDotActive: {
+    backgroundColor: "#FF3366",
+    width: 16,
+  },
+  statsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FAFAFA",
+    borderRadius: 14,    paddingVertical: 16,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FF3366",
+  },
+  statLabel: {
+    fontSize: 11,
+    color: "#777",
+    marginTop: 2,
+    textAlign: "center",
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: "#E5E5E5",
+  },
+  howItWorksSection: {
+    marginTop: 26,
+  },
+  howItWorksTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 14,
+  },
+  howItWorksSteps: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  howItWorksStep: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 6,
+    marginBottom: 12,
+  },
+  howItWorksIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFF0F3",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  howItWorksStepTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 4,
+  },
+  howItWorksStepDesc: {
+    fontSize: 11,
+    color: "#888",
+    textAlign: "center",
+    lineHeight: 15,
+  },
+  dietSection: {
+    marginTop: 20,
+  },
+  dietChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: "#FAFAFA",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+    marginRight: 10,
+  },
+  dietChipSelected: {
+    backgroundColor: "#FF3366",
+    borderColor: "#FF3366",
+  },
+  dietChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#555",
+  },
+  dietChipTextSelected: {
+    color: "#fff",
+  },
   categorySection: {
     marginTop: 22,
   },
-  categoryButton: {    backgroundColor: "#FAFAFA",
+  categoryButton: {
+    backgroundColor: "#FAFAFA",
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 16,
@@ -813,8 +1104,7 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 13,
-    color: "#999",
-    marginTop: 8,
+    color: "#999",    marginTop: 8,
   },
   shopContainer: {
     flexDirection: "row",
