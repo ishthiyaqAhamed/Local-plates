@@ -10,13 +10,13 @@ import {
   TextInput,
   SafeAreaView,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 const API_BASE_URL = "https://local-plates-backend.onrender.com/api";
 
-// Define Product interface based on your Firestore structure
+// Define Product interface based on your backend structure
 interface Product {
   id: string;
   name: string;
@@ -35,9 +35,10 @@ interface Product {
 
 export default function SearchScreen() {
   const router = useRouter();
+  const { q } = useLocalSearchParams<{ q?: string }>();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(q || "");
   const [loading, setLoading] = useState(true);
 
   // Fetch products when component mounts
@@ -186,8 +187,8 @@ export default function SearchScreen() {
           renderItem={renderProductItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.productsList}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={            <Text style={styles.resultsCount}>
+          showsVerticalScrollIndicator={false}          ListHeaderComponent={
+            <Text style={styles.resultsCount}>
               {filteredProducts.length} items found
             </Text>
           }
