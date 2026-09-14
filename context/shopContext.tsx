@@ -76,11 +76,13 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setLoading(true);
       const res = await fetch(`${API_BASE_URL}/shops`);
+      if (!res.ok) return;
+      const ct = res.headers.get("content-type");
+      if (!ct || !ct.includes("application/json")) return;
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch shops");
-      setShops(data.shops);
+      if (data?.shops) setShops(data.shops);
     } catch (error) {
-      console.error("Error fetching shops:", error);
+      console.warn("Could not fetch remote shops (using local/cached):", error);
     } finally {
       setLoading(false);
     }
@@ -89,16 +91,19 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
   const fetchProducts = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/products`);
+      if (!res.ok) return;
+      const ct = res.headers.get("content-type");
+      if (!ct || !ct.includes("application/json")) return;
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch products");
-      setProducts(data.products);
-
-      const uniqueTypes = Array.from(
-        new Set(data.products.map((product: Product) => product.type))
-      ) as string[];
-      setProductTypes(uniqueTypes);
+      if (data?.products) {
+        setProducts(data.products);
+        const uniqueTypes = Array.from(
+          new Set(data.products.map((product: Product) => product.type))
+        ) as string[];
+        setProductTypes(uniqueTypes);
+      }
     } catch (error) {
-      console.error("Error fetching products:", error);
+      console.warn("Could not fetch remote products (using local/cached):", error);
     }
   };
 
@@ -106,10 +111,11 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
     try {
       const res = await fetch(`${API_BASE_URL}/shops/${uid}`);
       if (!res.ok) return null;
+      const ct = res.headers.get("content-type");
+      if (!ct || !ct.includes("application/json")) return null;
       const data = await res.json();
       return data.shop;
     } catch (error) {
-      console.error("Error fetching shop profile:", error);
       return null;
     }
   };

@@ -97,11 +97,11 @@ export default function UserLayout() {
       <Tabs.Screen
         name="chat"
         options={{
-          title: "Chat",
+          title: "AI Chef",
           tabBarIcon: ({ color, size }) => (
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons
-                name={Platform.OS === 'ios' ? "mail-outline" : "mail"}
+                name={Platform.OS === 'ios' ? "sparkles-outline" : "sparkles"}
                 size={size}
                 color={color}
               />

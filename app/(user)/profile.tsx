@@ -19,20 +19,17 @@ import {
 } from "../../context/orderContext";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import GoogleSignInButton from "../../components/GoogleSignInButton";
 
 const { width } = Dimensions.get("window");
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
-  const { userOrders, getUserOrders, loading, error } = useOrder();
+  const { user, loading: authLoading, logout } = useAuth();
+  const { userOrders, getUserOrders, loading: orderLoading, error } = useOrder();
   const router = useRouter();
 
   const [ordersToReview, setOrdersToReview] = useState<OrderSummary[]>([]);
   const [ordersToReceive, setOrdersToReceive] = useState<OrderSummary[]>([]);
-
-  console.log("User:", user?.uid);
-  console.log("UserOrders count:", userOrders?.length);
-  console.log("UserOrders:", JSON.stringify(userOrders));
 
   useEffect(() => {
     if (user) {
@@ -42,8 +39,6 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (userOrders && userOrders.length > 0) {
-      console.log("Processing orders...");
-
       const toReview = userOrders.filter(
         (order) => order.status === OrderStatus.DELIVERED
       );
@@ -53,9 +48,6 @@ export default function ProfileScreen() {
           order.status === OrderStatus.SHIPPED ||
           order.status === OrderStatus.PROCESSING
       );
-
-      console.log("Orders to review:", toReview.length);
-      console.log("Orders to receive:", toReceive.length);
 
       setOrdersToReview(toReview);
       setOrdersToReceive(toReceive);
@@ -106,10 +98,11 @@ export default function ProfileScreen() {
     }
   };
 
-  if (loading && !userOrders.length) {
+  // Auth still resolving
+  if (authLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#000" />
+        <ActivityIndicator size="large" color="#FF3366" />
         <Text style={styles.loadingText}>Loading your profile...</Text>
       </SafeAreaView>
     );
@@ -124,7 +117,7 @@ export default function ProfileScreen() {
           <Ionicons name="person-circle-outline" size={90} color="#ccc" />
           <Text style={guestStyles.title}>You're browsing as a guest</Text>
           <Text style={guestStyles.subtitle}>
-            Log in or create an account to track orders, save addresses, and
+            Log in or continue with Google to track orders, save addresses, and
             check out faster.
           </Text>
 
@@ -135,12 +128,11 @@ export default function ProfileScreen() {
             <Text style={guestStyles.loginButtonText}>LOG IN</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={guestStyles.registerButton}
-            onPress={() => router.push("/(auth)/register")}
-          >
-            <Text style={guestStyles.registerButtonText}>REGISTER</Text>
-          </TouchableOpacity>
+          <GoogleSignInButton
+            text="CONTINUE WITH GOOGLE"
+            style={guestStyles.googleButton}
+            textStyle={guestStyles.googleButtonText}
+          />
 
           <TouchableOpacity
             style={guestStyles.sellerLink}
@@ -151,6 +143,16 @@ export default function ProfileScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Logged-in user loading orders
+  if (orderLoading && !userOrders.length) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FF3366" />
+        <Text style={styles.loadingText}>Loading your orders...</Text>
       </SafeAreaView>
     );
   }
@@ -215,8 +217,8 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.ordersContainer}>
-            {loading ? (
-              <ActivityIndicator size="small" color="#000" />
+            {orderLoading ? (
+              <ActivityIndicator size="small" color="#FF3366" />
             ) : ordersToReceive.length > 0 ? (
               ordersToReceive.slice(0, 3).map((order) => (
                 <TouchableOpacity
@@ -582,25 +584,28 @@ const guestStyles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 15,
   },
-  registerButton: {
+  googleButton: {
     width: "100%",
-    borderWidth: 1,
-    borderColor: "#000",
-    paddingVertical: 15,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    paddingVertical: 14,
     borderRadius: 8,
-    alignItems: "center",
+    backgroundColor: "#fff",
+    marginBottom: 12,
   },
-  registerButtonText: {
-    color: "#000",
+  googleButtonText: {
+    color: "#1F2937",
     fontWeight: "bold",
-    fontSize: 15,
+    fontSize: 14,
+    letterSpacing: 0.3,
   },
   sellerLink: {
-    marginTop: 24,
+    marginTop: 20,
   },
   sellerLinkText: {
     color: "#2196F3",
     fontSize: 13,
     textAlign: "center",
+    fontWeight: "600",
   },
 });

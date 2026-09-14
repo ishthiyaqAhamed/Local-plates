@@ -5,7 +5,7 @@ const connectDB = require("./config/db");
 const authRoutes = require("./routes/auth");
 const productRoutes = require("./routes/products");
 const shopRoutes = require("./routes/shops");
-const orderRoutes = require("./routes/orders");
+const orderRoutes = require("./routes/order");
 
 const app = express();
 

@@ -29,8 +29,6 @@ export default function RootLayout() {
               <Stack.Screen name="(auth)/seller-register" />
               <Stack.Screen name="(user)" options={{ animation: "fade" }} />
               <Stack.Screen name="(seller)" options={{ animation: "fade" }} />
-              <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
-              
             </Stack>
             </OrderProvider>
             </CartProvider>

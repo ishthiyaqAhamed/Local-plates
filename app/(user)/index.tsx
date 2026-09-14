@@ -39,20 +39,32 @@ type CategoryType =
   | "Seafood"
   | string;
 
+const DEFAULT_CATEGORIES = [
+  { name: "Rice & Curry", icon: "restaurant-outline" as const },
+  { name: "Biryani", icon: "flame-outline" as const },
+  { name: "Noodles", icon: "restaurant-outline" as const },
+  { name: "Burger", icon: "fast-food-outline" as const },
+  { name: "Pizza", icon: "pizza-outline" as const },
+  { name: "Short Eats", icon: "cafe-outline" as const },
+  { name: "Desserts", icon: "ice-cream-outline" as const },
+  { name: "Drinks", icon: "wine-outline" as const },
+  { name: "Healthy", icon: "leaf-outline" as const },
+];
+
 function getResponsiveLayout(winW: number) {
   if (winW >= 1200) {
-    return { columns: 6, contentMaxWidth: 1180, gutter: 24, cardGap: 20 };
+    return { columns: 5, contentMaxWidth: 1200, gutter: 32, cardGap: 24 };
   }
   if (winW >= 900) {
-    return { columns: 5, contentMaxWidth: 900, gutter: 24, cardGap: 18 };
+    return { columns: 4, contentMaxWidth: 960, gutter: 24, cardGap: 20 };
   }
   if (winW >= 700) {
-    return { columns: 4, contentMaxWidth: 700, gutter: 20, cardGap: 16 };
+    return { columns: 3, contentMaxWidth: 720, gutter: 20, cardGap: 16 };
   }
   if (winW >= 480) {
-    return { columns: 3, contentMaxWidth: winW, gutter: 20, cardGap: 14 };
+    return { columns: 2, contentMaxWidth: winW, gutter: 16, cardGap: 14 };
   }
-  return { columns: 3, contentMaxWidth: winW, gutter: 16, cardGap: 12 };
+  return { columns: 2, contentMaxWidth: winW, gutter: 16, cardGap: 12 };
 }
 
 export default function BuyerHomeScreen() {
@@ -66,7 +78,7 @@ export default function BuyerHomeScreen() {
       layout.gutter * 2 -
       layout.cardGap * (layout.columns - 1)) /
     layout.columns;
-  const isNarrow = winW < 700;
+  const isNarrow = winW < 768;
 
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,7 +97,6 @@ export default function BuyerHomeScreen() {
   const promoScrollRef = useRef<ScrollView>(null);
   const [shopsSectionY, setShopsSectionY] = useState(0);
   const [promoIndex, setPromoIndex] = useState(0);
-  const [selectedDiet, setSelectedDiet] = useState<string | null>(null);
 
   const promos = [
     {
@@ -98,36 +109,31 @@ export default function BuyerHomeScreen() {
       title: "Free delivery today",
       subtitle: "Orders over LKR 1,500 qualify for free delivery",
       icon: "bicycle-outline" as const,
-      colors: ["#3498DB", "#5DADE2"] as const,
+      colors: ["#2980B9", "#3498DB"] as const,
     },
     {
       title: "Support local home cooks",
       subtitle: "Every order helps a home-based seller grow their business",
       icon: "heart-outline" as const,
-      colors: ["#9B59B6", "#BB8FCE"] as const,
+      colors: ["#8E44AD", "#A569BD"] as const,
     },
   ];
 
-  const dietaryTags = ["Vegetarian", "Vegan", "Halal", "Spicy", "Non-Veg"];
-
-  const handleDietPress = (tag: string) => {
-    setSelectedDiet(tag);
-    router.push({ pathname: "/(user)/search", params: { q: tag } });
-  };
-
   useEffect(() => {
-    const interval = setInterval(() => {
-      setPromoIndex((prev) => {
-        const next = (prev + 1) % promos.length;
-        promoScrollRef.current?.scrollTo({
-          x: next * (winW < 700 ? winW - 40 : 340),
-          animated: true,
+    if (isNarrow) {
+      const interval = setInterval(() => {
+        setPromoIndex((prev) => {
+          const next = (prev + 1) % promos.length;
+          promoScrollRef.current?.scrollTo({
+            x: next * (winW - 40),
+            animated: true,
+          });
+          return next;
         });
-        return next;
-      });
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [winW]);
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [winW, isNarrow]);
 
   const categoryIcons: Record<CategoryType, keyof typeof Ionicons.glyphMap> = {
     Rice: "restaurant-outline",
@@ -148,16 +154,26 @@ export default function BuyerHomeScreen() {
     return categoryIcons[category] || "fast-food-outline";
   };
 
+  const availableCategories =
+    productTypes && productTypes.length > 0
+      ? productTypes.map((t) => ({
+          name: t,
+          icon: getCategoryIcon(t as CategoryType),
+        }))
+      : DEFAULT_CATEGORIES;
+
   useEffect(() => {
     fetchProducts();
   }, []);
+
   useEffect(() => {
     if (lat && lng) {
       const selectedLat = parseFloat(lat as string);
       const selectedLng = parseFloat(lng as string);
 
       setLatitude(selectedLat);
-      setLongitude(selectedLng);      setLocationLoading(false);
+      setLongitude(selectedLng);
+      setLocationLoading(false);
       setLocationError(null);
 
       reverseGeocode(selectedLat, selectedLng);
@@ -214,20 +230,84 @@ export default function BuyerHomeScreen() {
     }
   }
 
-  const handleCategorySelect = (type: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (error) {
-      console.warn("Haptics error:", error);
+  const liveBatches = [
+    {
+      id: "lb-1",
+      dishName: "Claypot Jaffna Crab Curry",
+      chefName: "Kamala's Hearth",
+      status: "Simmering Now",
+      portionsLeft: 3,
+      readyTime: "Ready in 15m",
+      price: "LKR 1,600",
+      rating: "4.9★",
+      tag: "Claypot Spice",
+      badgeColor: "#FF4757",
+      imageUrl: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=400&auto=format&fit=crop",
+    },
+    {
+      id: "lb-2",
+      dishName: "Woodfired Dum Biryani",
+      chefName: "Fatima's Kitchen",
+      status: "Fresh from Oven",
+      portionsLeft: 5,
+      readyTime: "Ready in 10m",
+      price: "LKR 1,250",
+      rating: "5.0★",
+      tag: "Secret Recipe",
+      badgeColor: "#2ED573",
+      imageUrl: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?q=80&w=400&auto=format&fit=crop",
+    },
+    {
+      id: "lb-3",
+      dishName: "Hot String Hoppers & Kiri Hodi",
+      chefName: "Granny Mary's Table",
+      status: "Steaming Fresh",
+      portionsLeft: 6,
+      readyTime: "Ready in 5m",
+      price: "LKR 750",
+      rating: "4.8★",
+      tag: "Breakfast / Dinner",
+      badgeColor: "#FFA502",
+      imageUrl: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=400&auto=format&fit=crop",
+    },
+  ];
+
+  const handleMysteryPlate = () => {
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
-    setSelectedType(type);
+    const dishes = [
+      { name: "Aunty Kamala's Claypot Jaffna Crab Curry", chef: "Kamala's Hearth", disc: "20% OFF", q: "Curry" },
+      { name: "Chef Fatima's Woodfired Dum Biryani", chef: "Fatima's Kitchen", disc: "15% OFF", q: "Biryani" },
+      { name: "Grandma Mary's Fresh String Hoppers", chef: "Granny Mary's Table", disc: "25% OFF", q: "Rice" },
+      { name: "Dilshan's Crispy Pol Roti & Seeni Sambal", chef: "Village Hearth", disc: "20% OFF", q: "Roti" },
+    ];
+    const picked = dishes[Math.floor(Math.random() * dishes.length)];
+    Alert.alert(
+      "🎉 Surprise Chef Plate Unlocked!",
+      `Today's Pick: ${picked.name}\nCooked by: ${picked.chef}\nSpecial Discount: ${picked.disc}\n\nWould you like to explore dishes from this kitchen?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Explore Dishes", onPress: () => router.push({ pathname: "/(user)/search", params: { q: picked.q } }) },
+      ]
+    );
+  };
+
+  const handleCategorySelect = (type: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+    if (selectedType === type) {
+      setSelectedType(null);
+    } else {
+      setSelectedType(type);
+      router.push({ pathname: "/(user)/search", params: { q: type } });
+    }
   };
 
   const handleShopPress = (shopId: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch (error) {
-      console.warn("Haptics error:", error);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     }
     router.push(`(user)/shops/${shopId}`);
   };
@@ -239,7 +319,10 @@ export default function BuyerHomeScreen() {
   };
 
   const scrollToShops = () => {
-    scrollRef.current?.scrollTo({ y: Math.max(shopsSectionY - 20, 0), animated: true });
+    scrollRef.current?.scrollTo({
+      y: Math.max(shopsSectionY - 20, 0),
+      animated: true,
+    });
   };
 
   const renderLoadingShimmer = () => (
@@ -275,16 +358,16 @@ export default function BuyerHomeScreen() {
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 30 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
       >
         {/* ---------- HERO ---------- */}
         <ImageBackground
           source={{ uri: HERO_IMAGE_URL }}
-          style={[styles.hero, { minHeight: isNarrow ? 420 : 460 }]}
+          style={[styles.hero, { minHeight: isNarrow ? 400 : 460 }]}
           resizeMode="cover"
         >
           <LinearGradient
-            colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.75)"]}
+            colors={["rgba(0,0,0,0.6)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.8)"]}
             style={StyleSheet.absoluteFill}
           />
 
@@ -294,7 +377,7 @@ export default function BuyerHomeScreen() {
               { paddingHorizontal: isNarrow ? 20 : 40 },
             ]}
           >
-            {/* Nav bar — spans the full hero width, edge to edge */}
+            {/* Nav bar */}
             <View style={styles.navBar}>
               <View style={styles.navLeft}>
                 <TouchableOpacity
@@ -310,7 +393,8 @@ export default function BuyerHomeScreen() {
                 <View style={styles.navRight}>
                   <TouchableOpacity
                     style={styles.navIconButton}
-                    onPress={() =>                      Alert.alert(
+                    onPress={() =>
+                      Alert.alert(
                         "Notifications",
                         "You're all caught up — no new notifications yet."
                       )
@@ -337,19 +421,16 @@ export default function BuyerHomeScreen() {
               )}
             </View>
 
-            {/* Hero content block — headline + search, capped narrower
-                than the nav bar so it doesn't stretch edge to edge on
-                very wide screens (matches how Uber Eats does it) */}
-            <View style={{ maxWidth: 640, width: "100%" }}>
-              {/* Headline */}
+            {/* Hero content block */}
+            <View style={{ maxWidth: 680, width: "100%", alignSelf: "center", marginVertical: "auto" }}>
               <View style={styles.heroTextBlock}>
                 <Text
-                  style={[styles.heroTitle, { fontSize: isNarrow ? 30 : 44 }]}
+                  style={[styles.heroTitle, { fontSize: isNarrow ? 32 : 46, lineHeight: isNarrow ? 38 : 54 }]}
                 >
                   Order homemade food{"\n"}near you
                 </Text>
                 <Text style={styles.heroSubtitle}>
-                  Fresh meals from local home cooks, delivered to your door
+                  Fresh, authentic meals handcrafted by local home cooks, delivered hot to your door.
                 </Text>
               </View>
 
@@ -363,9 +444,9 @@ export default function BuyerHomeScreen() {
                 <TouchableOpacity
                   style={styles.heroAddressField}
                   onPress={() => router.push("/select-location-home")}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                 >
-                  <Ionicons name="location-outline" size={18} color="#666" />
+                  <Ionicons name="location-sharp" size={20} color="#FF3366" />
                   {locationLoading ? (
                     <View style={styles.heroAddressLoadingRow}>
                       <ActivityIndicator size="small" color="#FF3366" />
@@ -393,7 +474,7 @@ export default function BuyerHomeScreen() {
 
               {!user && (
                 <TouchableOpacity onPress={() => router.push("/(user)")}>
-                  <Text style={styles.orGuestText}>Or continue as guest</Text>
+                  <Text style={styles.orGuestText}>Or continue browsing as guest</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -407,171 +488,359 @@ export default function BuyerHomeScreen() {
             { maxWidth: layout.contentMaxWidth, paddingHorizontal: layout.gutter },
           ]}
         >
-          {/* Promo Carousel */}
+          {/* Promo Section */}
           <View style={styles.promoSection}>
-            <ScrollView
-              ref={promoScrollRef}
-              horizontal
-              pagingEnabled={isNarrow}
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={(e) => {
-                const cardWidth = isNarrow ? winW - 40 : 340;
-                const index = Math.round(e.nativeEvent.contentOffset.x / cardWidth);
-                setPromoIndex(index);
-              }}
-            >
-              {promos.map((promo, i) => (
-                <LinearGradient
-                  key={i}
-                  colors={promo.colors}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.promoCard,
-                    { width: isNarrow ? winW - 40 : 320 },
-                  ]}
+            {!isNarrow ? (
+              <View style={styles.promoDesktopGrid}>
+                {promos.map((promo, i) => (
+                  <LinearGradient
+                    key={i}
+                    colors={promo.colors}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.promoCardDesktop}
+                  >
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={styles.promoTitle}>{promo.title}</Text>
+                      <Text style={styles.promoSubtitle}>{promo.subtitle}</Text>
+                    </View>
+                    <Ionicons name={promo.icon} size={34} color="rgba(255,255,255,0.95)" />
+                  </LinearGradient>
+                ))}
+              </View>
+            ) : (
+              <>
+                <ScrollView
+                  ref={promoScrollRef}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(e) => {
+                    const cardWidth = winW - 40;
+                    const index = Math.round(e.nativeEvent.contentOffset.x / cardWidth);
+                    setPromoIndex(index);
+                  }}
                 >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.promoTitle}>{promo.title}</Text>
-                    <Text style={styles.promoSubtitle}>{promo.subtitle}</Text>
-                  </View>
-                  <Ionicons name={promo.icon} size={32} color="rgba(255,255,255,0.9)" />
-                </LinearGradient>
-              ))}
-            </ScrollView>
-            <View style={styles.promoDots}>
-              {promos.map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.promoDot,
-                    i === promoIndex && styles.promoDotActive,
-                  ]}
-                />
-              ))}
-            </View>
+                  {promos.map((promo, i) => (
+                    <LinearGradient
+                      key={i}
+                      colors={promo.colors}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.promoCard,
+                        { width: winW - 40 },
+                      ]}
+                    >
+                      <View style={{ flex: 1, paddingRight: 10 }}>
+                        <Text style={styles.promoTitle}>{promo.title}</Text>
+                        <Text style={styles.promoSubtitle}>{promo.subtitle}</Text>
+                      </View>
+                      <Ionicons name={promo.icon} size={32} color="rgba(255,255,255,0.95)" />
+                    </LinearGradient>
+                  ))}
+                </ScrollView>
+                <View style={styles.promoDots}>
+                  {promos.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.promoDot,
+                        i === promoIndex && styles.promoDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
           </View>
 
           {/* Trust stats bar */}
           <View style={styles.statsBar}>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>500+</Text>
-              <Text style={styles.statLabel}>Orders delivered</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>50+</Text>
-              <Text style={styles.statLabel}>Home sellers</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>4.8★</Text>
-              <Text style={styles.statLabel}>Average rating</Text>
-            </View>
-          </View>          {/* How it works — guests only */}
-          {!user && (
-            <View style={styles.howItWorksSection}>
-              <Text style={styles.howItWorksTitle}>How it works</Text>
-              <View
-                style={[
-                  styles.howItWorksSteps,
-                  isNarrow && { flexDirection: "column" },
-                ]}
-              >
-                {[
-                  {
-                    icon: "search-outline" as const,
-                    title: "Browse",
-                    desc: "Explore homemade food from sellers near you",
-                  },
-                  {
-                    icon: "cart-outline" as const,
-                    title: "Order",
-                    desc: "Pick your meal and check out in a few taps",
-                  },
-                  {
-                    icon: "bicycle-outline" as const,
-                    title: "Enjoy",
-                    desc: "Get it delivered fresh to your door",
-                  },
-                ].map((step, i) => (
-                  <View key={i} style={styles.howItWorksStep}>
-                    <View style={styles.howItWorksIconWrap}>
-                      <Ionicons name={step.icon} size={22} color="#FF3366" />
-                    </View>
-                    <Text style={styles.howItWorksStepTitle}>{step.title}</Text>
-                    <Text style={styles.howItWorksStepDesc}>{step.desc}</Text>
-                  </View>
-                ))}
+              <View style={[styles.statIconBadge, { backgroundColor: "#FFF0F5" }]}>
+                <Ionicons name="bag-check" size={20} color="#FF3366" />
+              </View>
+              <View style={styles.statContent}>
+                <Text style={styles.statNumber}>500+</Text>
+                <Text style={styles.statLabel}>Orders delivered</Text>
               </View>
             </View>
-          )}
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <View style={[styles.statIconBadge, { backgroundColor: "#EBF5FB" }]}>
+                <Ionicons name="storefront" size={20} color="#3498DB" />
+              </View>
+              <View style={styles.statContent}>
+                <Text style={styles.statNumber}>50+</Text>
+                <Text style={styles.statLabel}>Home sellers</Text>
+              </View>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <View style={[styles.statIconBadge, { backgroundColor: "#FEF9E7" }]}>
+                <Ionicons name="star" size={20} color="#F39C12" />
+              </View>
+              <View style={styles.statContent}>
+                <Text style={styles.statNumber}>4.8★</Text>
+                <Text style={styles.statLabel}>Average rating</Text>
+              </View>
+            </View>
+          </View>
 
-          {/* Dietary quick-filters */}
-          <View style={styles.dietSection}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {dietaryTags.map((tag) => (
+          {/* Curated Highlights / Quick Action Collections */}
+          <View style={styles.curatedSection}>
+            <View style={styles.sectionHeaderLeft}>
+              <Text style={styles.sectionHeading}>What are you craving today?</Text>
+              <Text style={styles.sectionSubheading}>Handcrafted homemade specials ready for you</Text>
+            </View>
+            <View style={[styles.curatedGrid, isNarrow && styles.curatedGridMobile]}>
+              {[
+                {
+                  id: "fast",
+                  title: "Fast Delivery",
+                  subtitle: "Under 35 mins",
+                  query: "Fast",
+                  colors: ["#FF6B6B", "#EE5253"] as const,
+                  icon: "flash" as const,
+                },
+                {
+                  id: "top-rated",
+                  title: "Top Home Chefs",
+                  subtitle: "4.8★ & Verified",
+                  query: "Top",
+                  colors: ["#FFA502", "#FF7F50"] as const,
+                  icon: "ribbon" as const,
+                },
+                {
+                  id: "combos",
+                  title: "Daily Specials",
+                  subtitle: "Authentic packs",
+                  query: "Rice",
+                  colors: ["#10AC84", "#1DD1A1"] as const,
+                  icon: "restaurant" as const,
+                },
+                {
+                  id: "budget",
+                  title: "Budget Bites",
+                  subtitle: "Under LKR 800",
+                  query: "Budget",
+                  colors: ["#5F27CD", "#341F97"] as const,
+                  icon: "pricetag" as const,
+                },
+              ].map((item) => (
                 <TouchableOpacity
-                  key={tag}
-                  style={[
-                    styles.dietChip,
-                    selectedDiet === tag && styles.dietChipSelected,
-                  ]}
-                  onPress={() => handleDietPress(tag)}
+                  key={item.id}
+                  style={styles.curatedCard}
+                  onPress={() => router.push({ pathname: "/(user)/search", params: { q: item.query } })}
+                  activeOpacity={0.85}
                 >
-                  <Text
+                  <LinearGradient
+                    colors={item.colors}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.curatedCardGradient}
+                  >
+                    <View style={styles.curatedCardText}>
+                      <Text style={styles.curatedCardTitle}>{item.title}</Text>
+                      <Text style={styles.curatedCardSubtitle}>{item.subtitle}</Text>
+                    </View>
+                    <View style={styles.curatedCardIconBadge}>
+                      <Ionicons name={item.icon} size={20} color="#fff" />
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Unique Feature 1: Live Kitchen Batches (Simmering Now) */}
+          <View style={styles.liveBatchesSection}>
+            <View style={styles.sectionHeaderBetween}>
+              <View style={styles.sectionTitleContainer}>
+                <View style={styles.livePulseDot} />
+                <Text style={styles.sectionTitle}>Live Kitchen Batches</Text>
+              </View>
+              <View style={styles.liveBadgePill}>
+                <Text style={styles.liveBadgeText}>Simmering in your area</Text>
+              </View>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 4 }}
+            >
+              {liveBatches.map((batch) => (
+                <View key={batch.id} style={styles.liveBatchCard}>
+                  <Image source={{ uri: batch.imageUrl }} style={styles.liveBatchImage} />
+                  <LinearGradient
+                    colors={["transparent", "rgba(0,0,0,0.85)"]}
+                    style={styles.liveBatchImageGradient}
+                  />
+
+                  {/* Status Badges */}
+                  <View style={styles.liveBatchTopRow}>
+                    <View style={[styles.liveStatusBadge, { backgroundColor: batch.badgeColor }]}>
+                      <Text style={styles.liveStatusBadgeText}>{batch.status}</Text>
+                    </View>
+                    <View style={styles.readyTimeBadge}>
+                      <Ionicons name="time-outline" size={12} color="#fff" />
+                      <Text style={styles.readyTimeText}>{batch.readyTime}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.liveBatchInfo}>
+                    <View style={styles.portionsLeftBadge}>
+                      <Text style={styles.portionsLeftText}>🔥 Only {batch.portionsLeft} portions left</Text>
+                    </View>
+                    <Text style={styles.liveBatchDishName} numberOfLines={1}>{batch.dishName}</Text>
+                    <Text style={styles.liveBatchChefName}>by {batch.chefName} • {batch.rating}</Text>
+                    <View style={styles.liveBatchFooter}>
+                      <Text style={styles.liveBatchPrice}>{batch.price}</Text>
+                      <TouchableOpacity
+                        style={styles.reserveBtn}
+                        onPress={() => router.push({ pathname: "/(user)/search", params: { q: batch.dishName.split(" ")[0] } })}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.reserveBtnText}>Reserve Pot</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Unified Cuisine & Category Hub */}
+          <View style={styles.categorySection}>
+            <View style={styles.sectionHeaderBetween}>
+              <View style={styles.sectionTitleContainer}>
+                <Ionicons name="restaurant-outline" size={20} color="#FF3366" />
+                <Text style={styles.sectionTitle}>Explore Categories</Text>
+              </View>
+              {selectedType && (
+                <TouchableOpacity onPress={() => setSelectedType(null)} style={styles.clearFilterBtn}>
+                  <Text style={styles.clearFilterText}>Reset filter</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Category Cards Strip */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 4 }}
+            >
+              {availableCategories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.name}
+                  style={[
+                    styles.categoryButton,
+                    selectedType === cat.name && styles.selectedCategory,
+                  ]}
+                  onPress={() => handleCategorySelect(cat.name)}
+                  activeOpacity={0.7}
+                >
+                  <View
                     style={[
-                      styles.dietChipText,
-                      selectedDiet === tag && styles.dietChipTextSelected,
+                      styles.categoryIconWrap,
+                      selectedType === cat.name && styles.selectedCategoryIconWrap,
                     ]}
                   >
-                    {tag}
+                    <Ionicons
+                      name={cat.icon as any}
+                      size={22}
+                      color={selectedType === cat.name ? "#fff" : "#FF3366"}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      selectedType === cat.name && styles.selectedCategoryText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {cat.name}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
 
-          {/* Category Selection */}
-          <View style={styles.categorySection}>
-            {loading ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {[1, 2, 3, 4, 5].map((item) => (
-                  <View
-                    key={item}
-                    style={[styles.categoryButton, styles.categoryButtonShimmer]}
+          {/* Unique Feature 2: Home Chef Spotlight & Story */}
+          <View style={styles.chefSpotlightCard}>
+            <LinearGradient
+              colors={["#1E293B", "#0F172A"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.chefSpotlightGradient}
+            >
+              <View style={styles.chefBadgeRow}>
+                <View style={styles.masterChefPill}>
+                  <Ionicons name="ribbon" size={14} color="#FFD700" />
+                  <Text style={styles.masterChefPillText}>Home Chef Spotlight</Text>
+                </View>
+                <View style={styles.verifiedKitchenBadge}>
+                  <Ionicons name="checkmark-circle" size={13} color="#10B981" />
+                  <Text style={styles.verifiedKitchenText}>Hygiene & Taste Verified</Text>
+                </View>
+              </View>
+
+              <View style={styles.chefContentRow}>
+                <View style={styles.chefAvatarWrap}>
+                  <Image
+                    source={{ uri: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?q=80&w=400&auto=format&fit=crop" }}
+                    style={styles.chefAvatar}
                   />
-                ))}
-              </ScrollView>
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {productTypes.map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.categoryButton,
-                      selectedType === type && styles.selectedCategory,
-                    ]}
-                    onPress={() => handleCategorySelect(type)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={getCategoryIcon(type as CategoryType)}
-                      size={20}
-                      color={selectedType === type ? "#fff" : "#FF3366"}
-                    />
-                    <Text
-                      style={[
-                        styles.categoryText,
-                        selectedType === type && styles.selectedCategoryText,
-                      ]}
-                    >
-                      {type}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
+                  <View style={styles.chefStarBadge}>
+                    <Ionicons name="star" size={10} color="#fff" />
+                    <Text style={styles.chefStarText}>4.9</Text>
+                  </View>
+                </View>
+
+                <View style={styles.chefDetails}>
+                  <Text style={styles.chefName}>Chef Kamala Wijesinghe</Text>
+                  <Text style={styles.chefOrigin}>Colombo 03 • 35 Years of Home Cooking</Text>
+                  <Text style={styles.chefQuote}>
+                    “I slow-cook every pot with natural heirloom spices, claypots, and the same love I feed my family.”
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.chefBottomRow}>
+                <View style={styles.chefStatsGroup}>
+                  <Text style={styles.chefStatItem}>🍲 1,200+ Meals Served</Text>
+                  <Text style={styles.chefStatItem}>🏺 Claypot Specialist</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.exploreKitchenBtn}
+                  onPress={() => router.push({ pathname: "/(user)/search", params: { q: "Kamala" } })}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.exploreKitchenBtnText}>View Kitchen</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+
+          {/* Value Promise Banner */}
+          <View style={styles.valuePromiseBar}>
+            <View style={styles.valuePromiseItem}>
+              <Ionicons name="home" size={16} color="#FF3366" />
+              <Text style={styles.valuePromiseText}>100% Home Cooked</Text>
+            </View>
+            <View style={styles.valuePromiseDot} />
+            <View style={styles.valuePromiseItem}>
+              <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+              <Text style={styles.valuePromiseText}>Verified Kitchens</Text>
+            </View>
+            <View style={styles.valuePromiseDot} />
+            <View style={styles.valuePromiseItem}>
+              <Ionicons name="bicycle" size={16} color="#3498DB" />
+              <Text style={styles.valuePromiseText}>Fresh & Hot Delivery</Text>
+            </View>
           </View>
 
           {/* Nearby Shops */}
@@ -627,7 +896,8 @@ export default function BuyerHomeScreen() {
                           <Ionicons
                             name={getFoodIcon(index)}
                             size={26}
-                            color="#fff"                          />
+                            color="#fff"
+                          />
                         </View>
                       )}
                       <LinearGradient
@@ -662,6 +932,34 @@ export default function BuyerHomeScreen() {
                 ))}
               </View>
             )}
+          </View>
+
+          {/* Unique Feature 3: Mystery Plate Surprise Banner */}
+          <View style={styles.mysterySection}>
+            <LinearGradient
+              colors={["#FF3366", "#9B59B6"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.mysteryGradient}
+            >
+              <View style={styles.mysteryLeft}>
+                <View style={styles.mysteryBadge}>
+                  <Text style={styles.mysteryBadgeText}>🎁 GAMIFIED SPECIAL</Text>
+                </View>
+                <Text style={styles.mysteryTitle}>Can't Decide What to Eat?</Text>
+                <Text style={styles.mysteryDesc}>
+                  Let a neighborhood home chef surprise you with their secret specialty at an extra 20% discount!
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.mysteryBtn}
+                onPress={handleMysteryPlate}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="dice" size={18} color="#FF3366" />
+                <Text style={styles.mysteryBtnText}>Roll Mystery Plate</Text>
+              </TouchableOpacity>
+            </LinearGradient>
           </View>
 
           {/* Popular This Week Section */}
@@ -903,172 +1201,623 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   promoSection: {
-    marginTop: 20,
+    marginTop: 32,
+    marginBottom: 8,
   },
-  promoCard: {
-    borderRadius: 16,
-    padding: 18,
-    marginRight: 12,
+  promoDesktopGrid: {
+    flexDirection: "row",
+    gap: 20,
+    width: "100%",
+  },
+  promoCardDesktop: {
+    flex: 1,
+    borderRadius: 18,
+    padding: 22,
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 90,
+    justifyContent: "space-between",
+    minHeight: 100,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  promoCard: {
+    borderRadius: 18,
+    padding: 20,
+    marginRight: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 94,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   promoTitle: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   promoSubtitle: {
-    color: "rgba(255,255,255,0.9)",
+    color: "rgba(255,255,255,0.92)",
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   promoDots: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 10,
+    marginTop: 16,
   },
   promoDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: "#e0e0e0",
-    marginHorizontal: 3,
+    marginHorizontal: 4,
   },
   promoDotActive: {
     backgroundColor: "#FF3366",
-    width: 16,
+    width: 20,
   },
   statsBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FAFAFA",
-    borderRadius: 14,    paddingVertical: 16,
-    marginTop: 20,
+    justifyContent: "space-around",
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    marginTop: 36,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: "#F0F0F2",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
   },
   statItem: {
     flex: 1,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  statIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  statContent: {
+    justifyContent: "center",
   },
   statNumber: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "800",
-    color: "#FF3366",
+    color: "#111",
   },
   statLabel: {
-    fontSize: 11,
-    color: "#777",
-    marginTop: 2,
-    textAlign: "center",
+    fontSize: 12,
+    color: "#666",
+    marginTop: 3,
+    fontWeight: "500",
   },
   statDivider: {
     width: 1,
-    height: 30,
-    backgroundColor: "#E5E5E5",
+    height: 40,
+    backgroundColor: "#EAEAEA",
   },
-  howItWorksSection: {
-    marginTop: 26,
-  },
-  howItWorksTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#222",
-    marginBottom: 14,
-  },
-  howItWorksSteps: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  howItWorksStep: {
-    flex: 1,
-    alignItems: "center",
-    paddingHorizontal: 6,
-    marginBottom: 12,
-  },
-  howItWorksIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFF0F3",
-    justifyContent: "center",
-    alignItems: "center",
+  curatedSection: {
+    marginTop: 36,
     marginBottom: 8,
   },
-  howItWorksStepTitle: {
+  sectionHeaderLeft: {
+    marginBottom: 16,
+  },
+  sectionHeading: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111",
+  },
+  sectionSubheading: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#222",
-    marginBottom: 4,
+    color: "#777",
+    marginTop: 4,
   },
-  howItWorksStepDesc: {
-    fontSize: 11,
-    color: "#888",
-    textAlign: "center",
-    lineHeight: 15,
+  curatedGrid: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 16,
   },
-  dietSection: {
-    marginTop: 20,
+  curatedGridMobile: {
+    flexWrap: "wrap",
+    gap: 12,
   },
-  dietChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 20,
-    backgroundColor: "#FAFAFA",
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-    marginRight: 10,
+  curatedCard: {
+    flex: 1,
+    minWidth: 140,
+    borderRadius: 18,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  dietChipSelected: {
-    backgroundColor: "#FF3366",
-    borderColor: "#FF3366",
+  curatedCardGradient: {
+    padding: 16,
+    minHeight: 88,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  dietChipText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#555",
+  curatedCardText: {
+    flex: 1,
+    paddingRight: 6,
   },
-  dietChipTextSelected: {
+  curatedCardTitle: {
     color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  curatedCardSubtitle: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 3,
+  },
+  curatedCardIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  liveBatchesSection: {
+    marginTop: 36,
+    marginBottom: 8,
+  },
+  livePulseDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: "#10B981",
+    marginRight: 8,
+  },
+  liveBadgePill: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  liveBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  liveBatchCard: {
+    width: 250,
+    height: 270,
+    borderRadius: 18,
+    overflow: "hidden",
+    marginRight: 16,
+    backgroundColor: "#111",
+    position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  liveBatchImage: {
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+  },
+  liveBatchImageGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 180,
+  },
+  liveBatchTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 12,
+  },
+  liveStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  liveStatusBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  readyTimeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    gap: 4,
+  },
+  readyTimeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  liveBatchInfo: {
+    position: "absolute",
+    bottom: 12,
+    left: 12,
+    right: 12,
+  },
+  portionsLeftBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 71, 87, 0.9)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  portionsLeftText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  liveBatchDishName: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  liveBatchChefName: {
+    color: "#E2E8F0",
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  liveBatchFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  liveBatchPrice: {
+    color: "#FFD700",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  reserveBtn: {
+    backgroundColor: "#FF3366",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  reserveBtnText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
   },
   categorySection: {
-    marginTop: 22,
+    marginTop: 36,
+    marginBottom: 8,
+  },
+  sectionHeaderBetween: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  clearFilterBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "#FFF0F3",
+  },
+  clearFilterText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FF3366",
   },
   categoryButton: {
-    backgroundColor: "#FAFAFA",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    paddingTop: 12,
+    paddingBottom: 10,
+    paddingHorizontal: 8,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    width: 88,
-    height: 78,
-    marginRight: 10,
+    width: 106,
+    minHeight: 108,
+    marginRight: 14,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: "#EDEDF2",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  categoryButtonShimmer: {
-    backgroundColor: "#f0f0f0",
+  categoryIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFF0F5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  selectedCategoryIconWrap: {
+    backgroundColor: "rgba(255,255,255,0.25)",
   },
   selectedCategory: {
     backgroundColor: "#FF3366",
     borderColor: "#FF3366",
+    shadowColor: "#FF3366",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
   categoryText: {
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "700",
-    marginTop: 8,
     textAlign: "center",
     color: "#333",
+    paddingHorizontal: 2,
   },
   selectedCategoryText: {
     color: "#fff",
   },
+  chefSpotlightCard: {
+    marginTop: 36,
+    marginBottom: 8,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  chefSpotlightGradient: {
+    padding: 22,
+  },
+  chefBadgeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  masterChefPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.4)",
+    gap: 6,
+  },
+  masterChefPillText: {
+    color: "#FFD700",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  verifiedKitchenBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    gap: 5,
+  },
+  verifiedKitchenText: {
+    color: "#10B981",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  chefContentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  chefAvatarWrap: {
+    position: "relative",
+    marginRight: 16,
+  },
+  chefAvatar: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: "#FFD700",
+  },
+  chefStarBadge: {
+    position: "absolute",
+    bottom: -4,
+    right: -4,
+    backgroundColor: "#FF3366",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    gap: 2,
+  },
+  chefStarText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  chefDetails: {
+    flex: 1,
+  },
+  chefName: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  chefOrigin: {
+    color: "#94A3B8",
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  chefQuote: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    marginTop: 6,
+    fontStyle: "italic",
+    lineHeight: 17,
+  },
+  chefBottomRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.1)",
+  },
+  chefStatsGroup: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  chefStatItem: {
+    color: "#CBD5E1",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  exploreKitchenBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FF3366",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    gap: 6,
+  },
+  exploreKitchenBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  mysterySection: {
+    marginTop: 36,
+    marginBottom: 8,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#FF3366",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  mysteryGradient: {
+    padding: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  mysteryLeft: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  mysteryBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.22)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  mysteryBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  mysteryTitle: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  mysteryDesc: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+  mysteryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  mysteryBtnText: {
+    color: "#111",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  valuePromiseBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FDFDFE",
+    borderWidth: 1,
+    borderColor: "#F0F0F5",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 28,
+    marginBottom: 8,
+  },
+  valuePromiseItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  valuePromiseText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#555",
+  },
+  valuePromiseDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D0D0D8",
+    marginHorizontal: 16,
+  },
   shopsSection: {
-    marginTop: 26,
+    marginTop: 36,
+    marginBottom: 12,
   },
   sectionHeader: {
     flexDirection: "row",

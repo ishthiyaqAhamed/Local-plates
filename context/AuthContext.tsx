@@ -40,13 +40,14 @@ interface AuthContextType {
   registerUser: (
     email: string,
     password: string,
-    extra?: { phoneNumber?: string; displayName?: string }
+    extra?: { phoneNumber?: string; phone?: string; displayName?: string }
   ) => Promise<void>;
   registerSeller: (
     email: string,
     password: string,
     extra: {
       phoneNumber?: string;
+      phone?: string;
       businessName: string;
       businessType?: string;
       address: string;
@@ -104,17 +105,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
-      const res = await fetch(`${API_BASE_URL}/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-      } else {
-        await AsyncStorage.removeItem(TOKEN_KEY);
+
+      // Add timeout so a cold Render backend never blocks app startup
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const ct = res.headers.get("content-type");
+          if (ct && ct.includes("application/json")) {
+            const data = await res.json();
+            if (data?.user) setUser(data.user);
+          }
+        } else {
+          await AsyncStorage.removeItem(TOKEN_KEY);
+        }
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        console.warn("Session check timed out or unreachable:", fetchErr);
       }
     } catch (error) {
-      console.error("Session rehydrate error:", error);
+      console.warn("Session rehydrate error:", error);
     } finally {
       setLoading(false);
     }
@@ -180,8 +197,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = async () => {
     if (Platform.OS !== "web") {
       Alert.alert(
-        "Not available yet",
-        "Google Sign-In on the mobile app needs a bit more setup on our end. Please use the web version for now, or register with email."
+        "Mobile Google Sign-In",
+        "Google Sign-In on native mobile requires native configuration. Please use the web version or log in."
       );
       return;
     }
@@ -189,6 +206,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await loadGoogleScript();
       const google = (window as any).google;
+
+      if (!google?.accounts?.id) {
+        throw new Error("Google Identity Services not loaded");
+      }
 
       await new Promise<void>((resolve, reject) => {
         google.accounts.id.initialize({
@@ -212,6 +233,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               reject(err);
             }
           },
+          auto_select: false,
+          cancel_on_tap_outside: true,
         });
 
         google.accounts.id.prompt((notification: any) => {
@@ -219,17 +242,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             notification.isNotDisplayed?.() ||
             notification.isSkippedMoment?.()
           ) {
-            reject(new Error("dismissed"));
+            // If One-Tap is suppressed by browser or origin 403, resolve without crashing
+            const reason = notification.getNotDisplayedReason?.() || notification.getSkippedReason?.() || "suppressed";
+            console.warn("Google One Tap status:", reason);
+            resolve();
           }
         });
       });
     } catch (error: any) {
       if (error?.message !== "dismissed") {
-        console.error("Google login error:", error);
-        Alert.alert(
-          "Sign-in failed",
-          "Could not sign in with Google. Please try again."
-        );
+        console.warn("Google login notification:", error);
       }
     }
   };

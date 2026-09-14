@@ -199,10 +199,19 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
       const res = await fetch(`${API_BASE_URL}/user/me`, {
         headers: await authHeaders(),
       });
+      if (!res.ok) {
+        setOrders([]);
+        setUserOrders([]);
+        return;
+      }
+      const ct = res.headers.get("content-type");
+      if (!ct || !ct.includes("application/json")) {
+        setOrders([]);
+        setUserOrders([]);
+        return;
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load orders");
-
-      const fetchedOrders: Order[] = data.orders;
+      const fetchedOrders: Order[] = data.orders || [];
       setOrders(fetchedOrders);
       setUserOrders(
         fetchedOrders.map((order) => ({
@@ -210,12 +219,11 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
           total: order.total,
           status: order.status,
           date: order.createdAt,
-          itemCount: order.items.length,
+          itemCount: order.items?.length || 0,
         }))
       );
     } catch (err) {
-      console.error("Error getting user orders:", err);
-      setError("Failed to load orders. Please try again.");
+      console.warn("Could not load user orders:", err);
     } finally {
       setLoading(false);
     }
@@ -234,13 +242,19 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
       const res = await fetch(`${API_BASE_URL}/seller/me`, {
         headers: await authHeaders(),
       });
+      if (!res.ok) {
+        setSellerOrders([]);
+        return;
+      }
+      const ct = res.headers.get("content-type");
+      if (!ct || !ct.includes("application/json")) {
+        setSellerOrders([]);
+        return;
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load seller orders");
-
-      setSellerOrders(data.orders);
+      setSellerOrders(data.orders || []);
     } catch (err) {
-      console.error("Error getting seller orders:", err);
-      setError("Failed to load seller orders. Please try again.");
+      console.warn("Could not load seller orders:", err);
     } finally {
       setLoading(false);
     }

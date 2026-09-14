@@ -1,255 +1,241 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   ScrollView,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useAuth } from "../../context/AuthContext";
+import GoogleSignInButton from "../../components/GoogleSignInButton";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { registerUser } = useAuth();
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleRegister = async () => {
-    Keyboard.dismiss();
-
-    if (!email || !phone || !password || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert("Error", "Please enter a valid email address");
-      return;
-    }
-
-    const phoneRegex = /^[0-9]{10}$/;
-    if (!phoneRegex.test(phone.replace(/[^\d]/g, ''))) {
-      Alert.alert("Error", "Please enter a valid 10-digit phone number");
-      return;
-    }
-
-    if (password.length < 8) {
-      Alert.alert("Error", "Password must be at least 8 characters long");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await registerUser(email, password, {
-        phone,
-        displayName: email.split("@")[0],
-      });
-      Alert.alert("Success", "Account created successfully", [
-        { text: "OK", onPress: () => router.replace("/(auth)/login") },
-      ]);
-    } catch (error: any) {
-      Alert.alert("Registration Failed", error.message || "Failed to register");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.keyboardAvoidContainer}
-    >
-      <TouchableWithoutFeedback onPress={Platform.OS === "web" ? undefined : Keyboard.dismiss}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContainer}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.container}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <Text style={styles.backButtonText}>←</Text>
-            </TouchableOpacity>
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <View style={styles.container}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
 
-            <Text style={styles.title}>Register</Text>
+        <Image
+          source={require("../../assets/images/logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
 
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="next"
-                blurOnSubmit={false}
-              />
+        <Text style={styles.title}>Join Local Plates</Text>
+        <Text style={styles.subtitle}>
+          Discover authentic homemade dishes crafted with love by passionate home chefs.
+        </Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Phone"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                returnKeyType="next"
-                blurOnSubmit={false}
-              />
+        {/* User Google Sign-In Card */}
+        <View style={styles.userCard}>
+          <Text style={styles.cardTitle}>For Food Lovers</Text>
+          <Text style={styles.cardDesc}>
+            Sign up in one tap using your Google account to order fresh meals, save favorite chefs, and track deliveries.
+          </Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                returnKeyType="next"
-                blurOnSubmit={false}
-              />
+          <GoogleSignInButton
+            text="Continue with Google"
+            style={styles.googleBtn}
+          />
+        </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm Password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                returnKeyType="done"
-                onSubmitEditing={handleRegister}
-              />
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Seller Registration Card */}
+        <View style={styles.sellerCard}>
+          <View style={styles.sellerHeader}>
+            <View style={styles.sellerIcon}>
+              <Ionicons name="restaurant" size={20} color="#FF3366" />
             </View>
-
-            <Text style={styles.termsText}>
-              By signing up, you agree to Photo's{" "}
-              <Text style={styles.link}>Terms of Service</Text> and{" "}
-              <Text style={styles.link}>Privacy Policy</Text>.
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.button, loading && styles.disabledButton]}
-              onPress={handleRegister}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? "REGISTERING..." : "REGISTER"}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.loginContainer}>
-              <Text>Already have an account? </Text>
-              <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-                <Text style={styles.loginText}>Login</Text>
-              </TouchableOpacity>
+            <View style={styles.sellerHeaderText}>
+              <Text style={styles.sellerCardTitle}>Become a Seller</Text>
+              <Text style={styles.sellerCardSubtitle}>Cook & earn from home</Text>
             </View>
-
-            <TouchableOpacity
-              style={[styles.button, loading && styles.disabledButton]}
-              onPress={() => router.push("/(auth)/seller-register")}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>
-               SELLER REGISTER
-              </Text>
-            </TouchableOpacity>
           </View>
-        </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+
+          <Text style={styles.cardDesc}>
+            Register your home kitchen or food business to list homemade plates and receive orders from local foodies.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.sellerRegisterButton}
+            onPress={() => router.push("/(auth)/seller-register")}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.sellerRegisterButtonText}>REGISTER AS SELLER</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Login Link */}
+        <View style={styles.loginContainer}>
+          <Text style={styles.loginPrompt}>Already have an account? </Text>
+          <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
+            <Text style={styles.loginText}>Log In</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardAvoidContainer: {
-    flex: 1,
-  },
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
+    backgroundColor: "#fff",
   },
   container: {
     flex: 1,
     alignItems: "center",
-    padding: 20,
+    justifyContent: "center",
+    padding: 24,
     backgroundColor: "#fff",
     width: "100%",
     maxWidth: 450,
     alignSelf: "center",
   },
-  inputContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
   backButton: {
     position: "absolute",
-    top: 50,
-    left: 20,
+    top: 40,
+    left: 16,
     padding: 10,
+    zIndex: 10,
   },
-  backButtonText: {
-    fontSize: 24,
+  logo: {
+    width: 70,
+    height: 70,
+    marginBottom: 10,
+    marginTop: 30,
   },
   title: {
-    fontSize: 30,
-    fontWeight: "bold",
-    marginTop: 80,
-    marginBottom: 30,
-    alignSelf: "flex-start",
-  },
-  input: {
-    width: "100%",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 5,
-    padding: 15,
-    marginBottom: 15,
-    fontSize: 16,
-  },
-  termsText: {
-    marginVertical: 20,
+    fontSize: 26,
+    fontWeight: "800",
+    marginBottom: 6,
+    color: "#111",
     textAlign: "center",
   },
-  link: {
-    color: "#2196F3",
+  subtitle: {
+    fontSize: 13,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 18,
+    paddingHorizontal: 10,
   },
-  button: {
+  userCard: {
     width: "100%",
-    backgroundColor: "#000",
-    padding: 15,
-    borderRadius: 5,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EEF0F2",
+    padding: 18,
     alignItems: "center",
   },
-  disabledButton: {
-    backgroundColor: "#666",
-  },
-  buttonText: {
-    color: "#fff",
+  cardTitle: {
     fontSize: 16,
+    fontWeight: "700",
+    color: "#111",
+    marginBottom: 6,
+  },
+  cardDesc: {
+    fontSize: 12,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 17,
+    marginBottom: 16,
+  },
+  googleBtn: {
+    width: "100%",
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 18,
+    width: "100%",
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E5E7EB",
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  sellerCard: {
+    width: "100%",
+    backgroundColor: "#FFF5F7",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFE0E6",
+    padding: 18,
+  },
+  sellerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  sellerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFE0E6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sellerHeaderText: {
+    flex: 1,
+  },
+  sellerCardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#E11D48",
+  },
+  sellerCardSubtitle: {
+    fontSize: 11,
+    color: "#9F1239",
+  },
+  sellerRegisterButton: {
+    width: "100%",
+    backgroundColor: "#000",
+    paddingVertical: 13,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  sellerRegisterButtonText: {
+    color: "#fff",
+    fontSize: 13,
     fontWeight: "bold",
+    letterSpacing: 0.5,
   },
   loginContainer: {
     flexDirection: "row",
-    marginTop: 30,
-    justifyContent: "center",
+    marginTop: 24,
     alignItems: "center",
     marginBottom: 20,
+  },
+  loginPrompt: {
+    fontSize: 13,
+    color: "#666",
   },
   loginText: {
     color: "#2196F3",
     fontWeight: "bold",
+    fontSize: 13,
   },
 });
