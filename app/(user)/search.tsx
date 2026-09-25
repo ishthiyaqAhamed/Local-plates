@@ -224,8 +224,9 @@ export default function SearchScreen() {
   const router = useRouter();
   const { q } = useLocalSearchParams<{ q?: string }>();
   const { width: winW } = useWindowDimensions();
-  const isDesktop = winW >= 900;
-  const numColumns = isDesktop ? 2 : 1;
+  const isDesktop = winW >= 700;
+  const numColumns = winW >= 1500 ? 4 : winW >= 1100 ? 3 : winW >= 700 ? 2 : 1;
+  const gutter = winW >= 1200 ? 32 : winW >= 768 ? 20 : 16;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState(q || "");
@@ -532,7 +533,7 @@ export default function SearchScreen() {
           numColumns={numColumns}
           contentContainerStyle={[
             styles.productsList,
-            { maxWidth: 1200, width: "100%", alignSelf: "center" },
+            { width: "100%", paddingHorizontal: gutter },
           ]}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={

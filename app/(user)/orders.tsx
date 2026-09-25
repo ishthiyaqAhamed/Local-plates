@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,6 +22,9 @@ export default function OrdersScreen() {
   const router = useRouter();
   const { userOrders, getUserOrders, loading } = useOrder();
   const [refreshing, setRefreshing] = useState(false);
+  const { width: winW } = useWindowDimensions();
+  const numColumns = winW >= 1200 ? 3 : winW >= 768 ? 2 : 1;
+  const gutter = winW >= 1200 ? 32 : 16;
 
   useEffect(() => {
     getUserOrders();
@@ -39,7 +43,7 @@ export default function OrdersScreen() {
   const renderOrderItem = ({ item }: { item: OrderSummary }) => {
     return (
       <TouchableOpacity
-        style={styles.orderCard}
+        style={[styles.orderCard, numColumns > 1 && { flex: 1, marginHorizontal: 8 }]}
         onPress={() => handleOrderPress(item.id)}
       >
         <View style={styles.orderHeader}>
@@ -67,7 +71,7 @@ export default function OrdersScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingHorizontal: gutter }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
@@ -85,7 +89,9 @@ export default function OrdersScreen() {
           data={userOrders}
           renderItem={renderOrderItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          key={numColumns}
+          numColumns={numColumns}
+          contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter }]}
           onRefresh={handleRefresh}
           refreshing={refreshing}
           ListEmptyComponent={

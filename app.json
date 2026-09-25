@@ -14,15 +14,30 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.localplates"
+      "bundleIdentifier": "com.anonymous.localplates",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Local Plates uses your location to discover nearby home chefs and calculate delivery."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.localplates"
+      "package": "com.anonymous.localplates",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to find nearby food."
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }

@@ -15,7 +15,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import UniversalMap from "../../components/UniversalMap";
+import { DEFAULT_COORDS } from "../../services/locationService";
 
 export default function SellerRegisterScreen() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function SellerRegisterScreen() {
   const [isEditingCoordinates, setIsEditingCoordinates] = useState(false);
   const [latitudeInput, setLatitudeInput] = useState("");
   const [longitudeInput, setLongitudeInput] = useState("");
-  const mapRef = useRef<MapView | null>(null);
+  const mapRef = useRef<any>(null);
 
   const geocodeAddress = async (searchText: string) => {
     setMapLoading(true);
@@ -344,39 +345,18 @@ export default function SellerRegisterScreen() {
                     <ActivityIndicator size="large" color="#2196F3" />
                     <Text style={styles.mapLoadingText}>Finding location...</Text>
                   </View>
-                ) : latitude && longitude ? (
-                  <MapView
-                    ref={mapRef}
-                    provider={Platform.OS === "ios" ? undefined : PROVIDER_GOOGLE}
-                    style={styles.map}
-                    initialRegion={{
-                      latitude,
-                      longitude,
-                      latitudeDelta: 0.01,
-                      longitudeDelta: 0.01,
-                    }}
-                    onPress={handleMapPress}
-                    scrollEnabled={!locationConfirmed}
-                    zoomEnabled={!locationConfirmed}
-                    rotateEnabled={!locationConfirmed}
-                    pitchEnabled={!locationConfirmed}
-                  >
-                    <Marker
-                      coordinate={{ latitude, longitude }}
-                      draggable={!locationConfirmed}
-                      onDragEnd={(e) => {
-                        setLatitude(e.nativeEvent.coordinate.latitude);
-                        setLongitude(e.nativeEvent.coordinate.longitude);
-                      }}
-                      pinColor={locationConfirmed ? "#4CAF50" : "#FF5722"}
-                    />
-                  </MapView>
                 ) : (
-                  <View style={styles.emptyMapContainer}>
-                    <Text style={styles.emptyMapText}>
-                      Enter your address and tap "Find" to locate your business
-                    </Text>
-                  </View>
+                  <UniversalMap
+                    latitude={latitude || DEFAULT_COORDS.latitude}
+                    longitude={longitude || DEFAULT_COORDS.longitude}
+                    title={businessName || "Store Location"}
+                    interactive={!locationConfirmed}
+                    onCoordinateChange={(newCoords) => {
+                      setLatitude(newCoords.latitude);
+                      setLongitude(newCoords.longitude);
+                    }}
+                    style={styles.map}
+                  />
                 )}
               </View>
 

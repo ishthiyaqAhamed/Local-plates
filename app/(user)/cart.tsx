@@ -6,19 +6,23 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  ToastAndroid,
+  useWindowDimensions,
 } from "react-native";
 import { useCart } from "../../context/cartContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { showToast } from "../../services/toast";
 
 export default function CartScreen() {
   const { cart, removeFromCart, clearCart, updateQuantity, getTotalAmount } = useCart();
+  const { width: winW } = useWindowDimensions();
+  const isDesktop = winW >= 850;
+  const gutter = winW >= 1200 ? 32 : 16;
 
   const handleRemoveItem = (productId: string) => {
     removeFromCart(productId);
-    ToastAndroid.show("Item removed from cart!", ToastAndroid.SHORT);
+    showToast("Item removed from cart!");
   };
 
   const handleIncreaseQuantity = (productId: string) => {
@@ -39,14 +43,17 @@ export default function CartScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { paddingHorizontal: gutter }]}>
         <Text style={styles.header}>Your Cart</Text>
         {cart.length > 0 && (
           <Text style={styles.itemCount}>{cart.length} {cart.length === 1 ? 'item' : 'items'}</Text>
         )}
       </View>
       
-      <ScrollView style={styles.cartContent}>
+      <ScrollView
+        style={styles.cartContent}
+        contentContainerStyle={{ paddingHorizontal: gutter, paddingVertical: 16 }}
+      >
         {cart.length === 0 ? (
           <View style={styles.emptyCartContainer}>
             <Ionicons name="cart-outline" size={80} color="#aaa" />
@@ -58,12 +65,91 @@ export default function CartScreen() {
               <Text style={styles.shopNowButtonText}>Shop Now</Text>
             </TouchableOpacity>
           </View>
+        ) : isDesktop ? (
+          <View style={styles.desktopLayout}>
+            {/* Left column: Cart Items */}
+            <View style={styles.desktopItemsCol}>
+              {cart.map((product) => (
+                <View key={product.id} style={styles.cartItemDesktop}>
+                  <Image
+                    source={{ uri: (product.images && product.images[0]) || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=200&auto=format&fit=crop" }}
+                    style={styles.productImage}
+                  />
+                  <View style={styles.productDetails}>
+                    <Text style={styles.productName}>{product.name}</Text>
+                    <Text style={styles.productPrice}>LKR {product.price.toFixed(2)}</Text>
+                    <View style={styles.quantityContainer}>
+                      <TouchableOpacity
+                        style={styles.quantityButton}
+                        onPress={() => handleDecreaseQuantity(product.id, product.quantity)}
+                      >
+                        <Text style={styles.quantityButtonText}>-</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.quantityText}>{product.quantity}</Text>
+                      <TouchableOpacity
+                        style={styles.quantityButton}
+                        onPress={() => handleIncreaseQuantity(product.id)}
+                      >
+                        <Text style={styles.quantityButtonText}>+</Text>
+                      </TouchableOpacity>
+                      
+                      <Text style={styles.itemTotalPrice}>
+                        LKR {(product.price * product.quantity).toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => handleRemoveItem(product.id)}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#FF3366" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <TouchableOpacity 
+                style={styles.clearCartButtonInline} 
+                onPress={clearCart}
+              >
+                <Ionicons name="trash-outline" size={16} color="#666" />
+                <Text style={styles.clearCartTextInline}>Empty Entire Cart</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Right column: Order Summary Card */}
+            <View style={styles.desktopSummaryCol}>
+              <View style={styles.cartSummaryCard}>
+                <Text style={styles.summaryTitle}>Order Summary</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Subtotal ({cart.length} items)</Text>
+                  <Text style={styles.summaryValue}>LKR {getTotalAmount().toFixed(2)}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Estimated Delivery</Text>
+                  <Text style={[styles.summaryValue, { color: "#10B981" }]}>FREE</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.summaryRow}>
+                  <Text style={styles.totalLabel}>Total Payable</Text>
+                  <Text style={styles.totalValue}>LKR {getTotalAmount().toFixed(2)}</Text>
+                </View>
+
+                <TouchableOpacity 
+                  style={styles.orderButtonDesktop} 
+                  onPress={handlePlaceOrder}
+                >
+                  <Text style={styles.orderButtonText}>Proceed to Checkout</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#fff" style={styles.arrowIcon} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         ) : (
           <>
             {cart.map((product) => (
               <View key={product.id} style={styles.cartItem}>
                 <Image
-                  source={{ uri: (product.images && product.images[0]) || "https://via.placeholder.com/100" }}
+                  source={{ uri: (product.images && product.images[0]) || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=200&auto=format&fit=crop" }}
                   style={styles.productImage}
                 />
                 <View style={styles.productDetails}>
@@ -119,7 +205,7 @@ export default function CartScreen() {
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {cart.length > 0 && (
+      {cart.length > 0 && !isDesktop && (
         <View style={styles.footer}>
           <TouchableOpacity 
             style={styles.clearCartButton} 
@@ -261,6 +347,76 @@ const styles = StyleSheet.create({
     padding: 8,
     alignSelf: "flex-start",
   },
+  desktopLayout: {
+    flexDirection: "row",
+    gap: 28,
+    alignItems: "flex-start",
+  },
+  desktopItemsCol: {
+    flex: 3,
+  },
+  desktopSummaryCol: {
+    flex: 2,
+    minWidth: 320,
+    position: "sticky" as any,
+    top: 20,
+  },
+  cartItemDesktop: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EAEAEA",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+    alignItems: "center",
+  },
+  clearCartButtonInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    borderRadius: 8,
+    backgroundColor: "#F5F5F7",
+    gap: 6,
+  },
+  clearCartTextInline: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+  },
+  cartSummaryCard: {
+    backgroundColor: "#fff",
+    padding: 24,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#EAEAEA",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  orderButtonDesktop: {
+    backgroundColor: "#FF3366",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 20,
+    shadowColor: "#FF3366",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
   cartSummary: {
     backgroundColor: "#fff",
     margin: 16,
@@ -335,7 +491,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   orderButton: {
-    backgroundColor: "#000",
+    backgroundColor: "#FF3366",
     flex: 1,
     flexDirection: "row",
     alignItems: "center",

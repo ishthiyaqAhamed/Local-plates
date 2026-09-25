@@ -20,6 +20,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
+import {
+  getCurrentUserLocation,
+  reverseGeocodeCoordinates,
+  DEFAULT_COORDS,
+} from "../../services/locationService";
 
 const isWeb = Platform.OS === "web";
 
@@ -52,19 +57,19 @@ const DEFAULT_CATEGORIES = [
 ];
 
 function getResponsiveLayout(winW: number) {
-  if (winW >= 1200) {
-    return { columns: 5, contentMaxWidth: 1200, gutter: 32, cardGap: 24 };
+  if (winW >= 1900) {
+    return { columns: 6, gutter: 40, cardGap: 24 };
   }
-  if (winW >= 900) {
-    return { columns: 4, contentMaxWidth: 960, gutter: 24, cardGap: 20 };
+  if (winW >= 1400) {
+    return { columns: 5, gutter: 32, cardGap: 20 };
   }
-  if (winW >= 700) {
-    return { columns: 3, contentMaxWidth: 720, gutter: 20, cardGap: 16 };
+  if (winW >= 1050) {
+    return { columns: 4, gutter: 24, cardGap: 18 };
   }
-  if (winW >= 480) {
-    return { columns: 2, contentMaxWidth: winW, gutter: 16, cardGap: 14 };
+  if (winW >= 768) {
+    return { columns: 3, gutter: 20, cardGap: 16 };
   }
-  return { columns: 2, contentMaxWidth: winW, gutter: 16, cardGap: 12 };
+  return { columns: 2, gutter: 14, cardGap: 12 };
 }
 
 export default function BuyerHomeScreen() {
@@ -74,7 +79,7 @@ export default function BuyerHomeScreen() {
   const { width: winW } = useWindowDimensions();
   const layout = getResponsiveLayout(winW);
   const itemWidth =
-    (layout.contentMaxWidth -
+    (winW -
       layout.gutter * 2 -
       layout.cardGap * (layout.columns - 1)) /
     layout.columns;
@@ -171,60 +176,59 @@ export default function BuyerHomeScreen() {
       const selectedLat = parseFloat(lat as string);
       const selectedLng = parseFloat(lng as string);
 
-      setLatitude(selectedLat);
-      setLongitude(selectedLng);
-      setLocationLoading(false);
-      setLocationError(null);
+      if (!isNaN(selectedLat) && !isNaN(selectedLng)) {
+        setLatitude(selectedLat);
+        setLongitude(selectedLng);
+        setLocationLoading(false);
+        setLocationError(null);
 
-      reverseGeocode(selectedLat, selectedLng);
-      fetchNearShops(selectedLat, selectedLng);
+        reverseGeocode(selectedLat, selectedLng);
+        fetchNearShops(selectedLat, selectedLng);
+      } else {
+        getCurrentLocation();
+      }
     } else {
       getCurrentLocation();
     }
   }, [lat, lng]);
 
-  useEffect(() => {
-    getCurrentLocation();
-  }, []);
-
   async function getCurrentLocation() {
     setLocationLoading(true);
     setLocationError(null);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setLocationError("Permission denied — set address manually");
-        setLocationLoading(false);
-        return;
+      const result = await getCurrentUserLocation();
+      setLatitude(result.coords.latitude);
+      setLongitude(result.coords.longitude);
+      setAddress(result.addressInfo.address);
+      setCity(result.addressInfo.city);
+      setProvince(result.addressInfo.province);
+      setZipCode(result.addressInfo.zipCode);
+
+      if (result.errorMessage && result.isFallback) {
+        setLocationError(result.errorMessage);
+      } else {
+        setLocationError(null);
       }
 
-      const loc = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = loc.coords;
-      setLatitude(latitude);
-      setLongitude(longitude);
-
-      await reverseGeocode(latitude, longitude);
-      fetchNearShops(latitude, longitude);
+      fetchNearShops(result.coords.latitude, result.coords.longitude);
     } catch (err) {
       console.error("Error getting location:", err);
-      setLocationError("Couldn't detect location — set manually");
+      setLocationError("Couldn't detect location — using default");
+      setLatitude(DEFAULT_COORDS.latitude);
+      setLongitude(DEFAULT_COORDS.longitude);
+      fetchNearShops(DEFAULT_COORDS.latitude, DEFAULT_COORDS.longitude);
     } finally {
       setLocationLoading(false);
     }
   }
 
-  async function reverseGeocode(latitude: number, longitude: number) {
+  async function reverseGeocode(targetLat: number, targetLng: number) {
     try {
-      const [geoData] = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
-      if (geoData) {
-        setAddress(`${geoData.name} ${geoData.street}`);
-        setCity(geoData.city || "Unknown");
-        setProvince(geoData.region || "Unknown");
-        setZipCode(geoData.postalCode || "00000");
-      }
+      const addressInfo = await reverseGeocodeCoordinates(targetLat, targetLng);
+      setAddress(addressInfo.address);
+      setCity(addressInfo.city);
+      setProvince(addressInfo.province);
+      setZipCode(addressInfo.zipCode);
     } catch (err) {
       console.error("Error in reverse geocoding:", err);
     }
@@ -485,7 +489,7 @@ export default function BuyerHomeScreen() {
         <View
           style={[
             styles.contentWrap,
-            { maxWidth: layout.contentMaxWidth, paddingHorizontal: layout.gutter },
+            { paddingHorizontal: layout.gutter },
           ]}
         >
           {/* Promo Section */}
@@ -666,50 +670,93 @@ export default function BuyerHomeScreen() {
               </View>
             </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 4 }}
-            >
-              {liveBatches.map((batch) => (
-                <View key={batch.id} style={styles.liveBatchCard}>
-                  <Image source={{ uri: batch.imageUrl }} style={styles.liveBatchImage} />
-                  <LinearGradient
-                    colors={["transparent", "rgba(0,0,0,0.85)"]}
-                    style={styles.liveBatchImageGradient}
-                  />
+            {!isNarrow ? (
+              <View style={styles.liveBatchesGridDesktop}>
+                {liveBatches.map((batch) => (
+                  <View key={batch.id} style={styles.liveBatchCardDesktop}>
+                    <Image source={{ uri: batch.imageUrl }} style={styles.liveBatchImage} />
+                    <LinearGradient
+                      colors={["transparent", "rgba(0,0,0,0.85)"]}
+                      style={styles.liveBatchImageGradient}
+                    />
 
-                  {/* Status Badges */}
-                  <View style={styles.liveBatchTopRow}>
-                    <View style={[styles.liveStatusBadge, { backgroundColor: batch.badgeColor }]}>
-                      <Text style={styles.liveStatusBadgeText}>{batch.status}</Text>
+                    {/* Status Badges */}
+                    <View style={styles.liveBatchTopRow}>
+                      <View style={[styles.liveStatusBadge, { backgroundColor: batch.badgeColor }]}>
+                        <Text style={styles.liveStatusBadgeText}>{batch.status}</Text>
+                      </View>
+                      <View style={styles.readyTimeBadge}>
+                        <Ionicons name="time-outline" size={12} color="#fff" />
+                        <Text style={styles.readyTimeText}>{batch.readyTime}</Text>
+                      </View>
                     </View>
-                    <View style={styles.readyTimeBadge}>
-                      <Ionicons name="time-outline" size={12} color="#fff" />
-                      <Text style={styles.readyTimeText}>{batch.readyTime}</Text>
+
+                    <View style={styles.liveBatchInfo}>
+                      <View style={styles.portionsLeftBadge}>
+                        <Text style={styles.portionsLeftText}>🔥 Only {batch.portionsLeft} portions left</Text>
+                      </View>
+                      <Text style={styles.liveBatchDishName} numberOfLines={1}>{batch.dishName}</Text>
+                      <Text style={styles.liveBatchChefName}>by {batch.chefName} • {batch.rating}</Text>
+                      <View style={styles.liveBatchFooter}>
+                        <Text style={styles.liveBatchPrice}>{batch.price}</Text>
+                        <TouchableOpacity
+                          style={styles.reserveBtn}
+                          onPress={() => router.push({ pathname: "/(user)/search", params: { q: batch.dishName.split(" ")[0] } })}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.reserveBtnText}>Reserve Pot</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
+                ))}
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingVertical: 4 }}
+              >
+                {liveBatches.map((batch) => (
+                  <View key={batch.id} style={styles.liveBatchCard}>
+                    <Image source={{ uri: batch.imageUrl }} style={styles.liveBatchImage} />
+                    <LinearGradient
+                      colors={["transparent", "rgba(0,0,0,0.85)"]}
+                      style={styles.liveBatchImageGradient}
+                    />
 
-                  <View style={styles.liveBatchInfo}>
-                    <View style={styles.portionsLeftBadge}>
-                      <Text style={styles.portionsLeftText}>🔥 Only {batch.portionsLeft} portions left</Text>
+                    {/* Status Badges */}
+                    <View style={styles.liveBatchTopRow}>
+                      <View style={[styles.liveStatusBadge, { backgroundColor: batch.badgeColor }]}>
+                        <Text style={styles.liveStatusBadgeText}>{batch.status}</Text>
+                      </View>
+                      <View style={styles.readyTimeBadge}>
+                        <Ionicons name="time-outline" size={12} color="#fff" />
+                        <Text style={styles.readyTimeText}>{batch.readyTime}</Text>
+                      </View>
                     </View>
-                    <Text style={styles.liveBatchDishName} numberOfLines={1}>{batch.dishName}</Text>
-                    <Text style={styles.liveBatchChefName}>by {batch.chefName} • {batch.rating}</Text>
-                    <View style={styles.liveBatchFooter}>
-                      <Text style={styles.liveBatchPrice}>{batch.price}</Text>
-                      <TouchableOpacity
-                        style={styles.reserveBtn}
-                        onPress={() => router.push({ pathname: "/(user)/search", params: { q: batch.dishName.split(" ")[0] } })}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.reserveBtnText}>Reserve Pot</Text>
-                      </TouchableOpacity>
+
+                    <View style={styles.liveBatchInfo}>
+                      <View style={styles.portionsLeftBadge}>
+                        <Text style={styles.portionsLeftText}>🔥 Only {batch.portionsLeft} portions left</Text>
+                      </View>
+                      <Text style={styles.liveBatchDishName} numberOfLines={1}>{batch.dishName}</Text>
+                      <Text style={styles.liveBatchChefName}>by {batch.chefName} • {batch.rating}</Text>
+                      <View style={styles.liveBatchFooter}>
+                        <Text style={styles.liveBatchPrice}>{batch.price}</Text>
+                        <TouchableOpacity
+                          style={styles.reserveBtn}
+                          onPress={() => router.push({ pathname: "/(user)/search", params: { q: batch.dishName.split(" ")[0] } })}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.reserveBtnText}>Reserve Pot</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))}
-            </ScrollView>
+                ))}
+              </ScrollView>
+            )}
           </View>
 
           {/* Unified Cuisine & Category Hub */}
@@ -727,45 +774,83 @@ export default function BuyerHomeScreen() {
             </View>
 
             {/* Category Cards Strip */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 4 }}
-            >
-              {availableCategories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.name}
-                  style={[
-                    styles.categoryButton,
-                    selectedType === cat.name && styles.selectedCategory,
-                  ]}
-                  onPress={() => handleCategorySelect(cat.name)}
-                  activeOpacity={0.7}
-                >
-                  <View
+            {!isNarrow ? (
+              <View style={styles.categoryGridDesktop}>
+                {availableCategories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.name}
                     style={[
-                      styles.categoryIconWrap,
-                      selectedType === cat.name && styles.selectedCategoryIconWrap,
+                      styles.categoryButtonDesktop,
+                      selectedType === cat.name && styles.selectedCategory,
                     ]}
+                    onPress={() => handleCategorySelect(cat.name)}
+                    activeOpacity={0.7}
                   >
-                    <Ionicons
-                      name={cat.icon as any}
-                      size={22}
-                      color={selectedType === cat.name ? "#fff" : "#FF3366"}
-                    />
-                  </View>
-                  <Text
+                    <View
+                      style={[
+                        styles.categoryIconWrap,
+                        selectedType === cat.name && styles.selectedCategoryIconWrap,
+                      ]}
+                    >
+                      <Ionicons
+                        name={cat.icon as any}
+                        size={22}
+                        color={selectedType === cat.name ? "#fff" : "#FF3366"}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        selectedType === cat.name && styles.selectedCategoryText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingVertical: 4 }}
+              >
+                {availableCategories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.name}
                     style={[
-                      styles.categoryText,
-                      selectedType === cat.name && styles.selectedCategoryText,
+                      styles.categoryButton,
+                      selectedType === cat.name && styles.selectedCategory,
                     ]}
-                    numberOfLines={1}
+                    onPress={() => handleCategorySelect(cat.name)}
+                    activeOpacity={0.7}
                   >
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                    <View
+                      style={[
+                        styles.categoryIconWrap,
+                        selectedType === cat.name && styles.selectedCategoryIconWrap,
+                      ]}
+                    >
+                      <Ionicons
+                        name={cat.icon as any}
+                        size={22}
+                        color={selectedType === cat.name ? "#fff" : "#FF3366"}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        selectedType === cat.name && styles.selectedCategoryText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
 
           {/* Unique Feature 2: Home Chef Spotlight & Story */}
@@ -987,6 +1072,53 @@ export default function BuyerHomeScreen() {
               <View style={styles.emptyState}>
                 <Ionicons name="flame-outline" size={28} color="#ccc" />
                 <Text style={styles.emptyStateText}>Nothing trending yet</Text>
+              </View>
+            ) : !isNarrow ? (
+              <View style={[styles.shopContainer, { gap: layout.cardGap }]}>
+                {shops.slice(0, 10).map((shop, index) => (
+                  <TouchableOpacity
+                    key={`popular-${shop.uid}`}
+                    style={{ width: itemWidth, height: 210, borderRadius: 16, overflow: "hidden", position: "relative", marginBottom: 16 }}
+                    onPress={() => handleShopPress(shop.uid)}
+                    activeOpacity={0.8}
+                  >
+                    {shop.photoURL ? (
+                      <Image
+                        source={{ uri: shop.photoURL }}
+                        style={styles.popularImage}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.popularImageFallback,
+                          { backgroundColor: getColorForIndex(index + 5) },
+                        ]}
+                      >
+                        <Ionicons
+                          name={getFoodIcon(index + 5)}
+                          size={36}
+                          color="#fff"
+                        />
+                      </View>
+                    )}
+                    <LinearGradient
+                      colors={["transparent", "rgba(0,0,0,0.85)"]}
+                      style={styles.popularImageGradient}
+                    />
+                    <View style={styles.popularInfo}>
+                      <Text style={styles.popularName} numberOfLines={1}>
+                        {shop.businessName}
+                      </Text>
+                      <View style={styles.popularSubInfo}>
+                        <Ionicons name="star" size={12} color="#FFC107" />
+                        <Text style={styles.popularRating}>
+                          {shop.rating || "4.8"}
+                        </Text>
+                        <Text style={styles.popularCategory}>• Homemade</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
               </View>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1406,6 +1538,25 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#059669",
   },
+  liveBatchesGridDesktop: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  liveBatchCardDesktop: {
+    flex: 1,
+    minWidth: 260,
+    height: 280,
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: "#111",
+    position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
   liveBatchCard: {
     width: 250,
     height: 270,
@@ -1533,6 +1684,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#FF3366",
+  },
+  categoryGridDesktop: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  categoryButtonDesktop: {
+    flex: 1,
+    minWidth: 110,
+    backgroundColor: "#FFFFFF",
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 8,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 110,
+    borderWidth: 1,
+    borderColor: "#EDEDF2",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
   categoryButton: {
     backgroundColor: "#FFFFFF",

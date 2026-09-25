@@ -7,24 +7,27 @@ import {
   ActivityIndicator,
   Image,
   TouchableOpacity,
-  ToastAndroid,
-  Dimensions,
   Platform,
   StatusBar,
   Animated,
+  useWindowDimensions,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useShop, Product } from "../../../context/shopContext";
 import { useCart } from "../../../context/cartContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, Feather, MaterialIcons } from "@expo/vector-icons";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Linking from "expo-linking";
-
-const { width, height } = Dimensions.get("window");
+import { showToast } from "../../../services/toast";
+import { MOCK_SHOPS, MOCK_PRODUCTS } from "../../../services/mockData";
+import UniversalMap from "../../../components/UniversalMap";
 
 export default function ShopDetails() {
   const { id } = useLocalSearchParams();
+  const { width: winW } = useWindowDimensions();
+  const isDesktop = winW >= 800;
+  const gutter = winW >= 1200 ? 32 : 16;
+  const productCols = winW >= 1400 ? 3 : winW >= 800 ? 2 : 1;
   const { shops, products, fetchProducts, fetchShops } = useShop();
   const { addToCart, cart } = useCart();
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -42,7 +45,7 @@ export default function ShopDetails() {
     };
 
     const handleFavorite = () => {
-      ToastAndroid.show("Added to favorites!", ToastAndroid.SHORT);
+      showToast("Added to favorites!", "Favorite");
     };
 
     return (
@@ -81,21 +84,24 @@ export default function ShopDetails() {
   }, []);
 
   useEffect(() => {
-    if (shops.length > 0 && id) {
-      const selectedShop = shops.find((s) => s.uid === id);
+    if (id) {
+      const selectedShop =
+        shops.find((s) => s.uid === id) ||
+        MOCK_SHOPS.find((s) => s.uid === id) ||
+        shops[0] ||
+        MOCK_SHOPS[0];
       setShop(selectedShop);
-    }
-  }, [shops, id]);
 
-  useEffect(() => {
-    if (products.length > 0 && id) {
-      const shopProducts = products.filter(
+      const allProds = products.length > 0 ? products : MOCK_PRODUCTS;
+      const shopProducts = allProds.filter(
         (product) => product.sellerId === id
       );
-      setFilteredProducts(shopProducts);
+      setFilteredProducts(
+        shopProducts.length > 0 ? shopProducts : allProds.slice(0, 4)
+      );
       setLoading(false);
     }
-  }, [products, id]);
+  }, [shops, products, id]);
 
   // Animation effect for map expansion
   useEffect(() => {
@@ -123,7 +129,7 @@ export default function ShopDetails() {
 
   const handleAddToCart = (product: Product) => {
     addToCart(product);
-    ToastAndroid.show("Item added to cart!", ToastAndroid.SHORT);
+    showToast("Item added to cart!");
   };
 
   const toggleMapExpansion = () => {
@@ -132,10 +138,7 @@ export default function ShopDetails() {
 
   const openDirections = () => {
     if (!shop?.location?.latitude || !shop?.location?.longitude) {
-      ToastAndroid.show(
-        "Location coordinates not available",
-        ToastAndroid.SHORT
-      );
+      showToast("Location coordinates not available");
       return;
     }
 
@@ -143,10 +146,11 @@ export default function ShopDetails() {
     const url = Platform.select({
       ios: `maps://app?saddr=Current+Location&daddr=${latitude},${longitude}`,
       android: `google.navigation:q=${latitude},${longitude}`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
     });
 
     Linking.openURL(url as string).catch(() => {
-      ToastAndroid.show("Could not open maps application", ToastAndroid.SHORT);
+      showToast("Could not open maps application");
     });
   };
 
@@ -238,36 +242,13 @@ export default function ShopDetails() {
             </View>
 
             <Animated.View style={[styles.mapContainer, { height: mapHeight }]}>
-              <MapView
-                provider={Platform.OS === "ios" ? undefined : PROVIDER_GOOGLE}
+              <UniversalMap
+                latitude={shopLocation.latitude}
+                longitude={shopLocation.longitude}
+                title={shop.businessName}
+                interactive={false}
                 style={styles.map}
-                region={{
-                  latitude: shopLocation.latitude,
-                  longitude: shopLocation.longitude,
-                  latitudeDelta: 0.005,
-                  longitudeDelta: 0.005,
-                }}
-                zoomEnabled={true}
-                scrollEnabled={mapExpanded}
-                rotateEnabled={mapExpanded}
-                pitchEnabled={false}
-              >
-                <Marker
-                  coordinate={{
-                    latitude: shopLocation.latitude,
-                    longitude: shopLocation.longitude,
-                  }}
-                  title={shop.businessName}
-                  description={shop.address}
-                >
-                  <View style={styles.customMarker}>
-                    <View style={styles.markerInner}>
-                      <Feather name="home" size={16} color="#fff" />
-                    </View>
-                    <View style={styles.markerTriangle} />
-                  </View>
-                </Marker>
-              </MapView>
+              />
 
               {mapExpanded && (
                 <TouchableOpacity
@@ -331,36 +312,44 @@ export default function ShopDetails() {
               <Text style={styles.noProducts}>No products available</Text>
             </View>
           ) : (
-            displayProducts.map((product) => (
-              <View key={product.id} style={styles.productItem}>
-                <View style={styles.productInfo}>
-                  <View>
-                    <Text style={styles.productName}>{product.name}</Text>
-                    <Text style={styles.productDescription}>
-                      {product.description ||
-                        "Fresh homemade item made with quality ingredients"}
-                    </Text>
+            <View style={styles.productsGrid}>
+              {displayProducts.map((product) => (
+                <View
+                  key={product.id}
+                  style={[
+                    styles.productItem,
+                    productCols > 1 && { width: productCols === 3 ? "31.5%" : "48.5%" },
+                  ]}
+                >
+                  <View style={styles.productInfo}>
+                    <View style={{ flex: 1, paddingRight: 10 }}>
+                      <Text style={styles.productName}>{product.name}</Text>
+                      <Text style={styles.productDescription} numberOfLines={2}>
+                        {product.description ||
+                          "Fresh homemade item made with quality ingredients"}
+                      </Text>
+                    </View>
+                    <View style={styles.priceContainer}>
+                      <Text style={styles.productPrice}>LKR {product.price}</Text>
+                      <TouchableOpacity
+                        style={styles.addToCartButton}
+                        onPress={() => handleAddToCart(product)}
+                      >
+                        <Feather name="plus" size={18} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={styles.priceContainer}>
-                    <Text style={styles.productPrice}>LKR {product.price}</Text>
-                    <TouchableOpacity
-                      style={styles.addToCartButton}
-                      onPress={() => handleAddToCart(product)}
-                    >
-                      <Feather name="plus" size={18} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
 
-                {product.images && (
-                  <Image
-                    source={{ uri: product.images[0] }}
-                    style={styles.productImage}
-                    resizeMode="cover"
-                  />
-                )}
-              </View>
-            ))
+                  {product.images && (
+                    <Image
+                      source={{ uri: product.images[0] }}
+                      style={styles.productImage}
+                      resizeMode="cover"
+                    />
+                  )}
+                </View>
+              ))}
+            </View>
           )}
         </View>
 
@@ -624,6 +613,12 @@ const styles = StyleSheet.create({
   productsSection: {
     padding: 16,
   },
+  productsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    justifyContent: "space-between",
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
@@ -641,14 +636,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   productItem: {
-    marginBottom: 20,
+    marginBottom: 16,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: "#fafafa",
+    borderWidth: 1,
+    borderColor: "#EAEAEA",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 2,
   },
   productInfo: {
@@ -660,13 +657,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     marginBottom: 4,
-    width: width - 140,
   },
   productDescription: {
     fontSize: 13,
     color: "#777",
     marginBottom: 8,
-    width: width - 140,
   },
   priceContainer: {
     alignItems: "flex-end",

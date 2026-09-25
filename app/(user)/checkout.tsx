@@ -6,10 +6,10 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  ToastAndroid,
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { showToast } from "../../services/toast";
 import { useCart } from "../../context/cartContext";
 import { useOrder, DeliveryInfo } from "../../context/orderContext";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,6 +20,11 @@ import { router } from "expo-router";
 import * as Location from "expo-location";
 import { useEffect } from "react";
 import { useLocalSearchParams } from "expo-router";
+import {
+  getCurrentUserLocation,
+  reverseGeocodeCoordinates,
+  DEFAULT_COORDS,
+} from "../../services/locationService";
 
 export default function CheckoutScreen() {
   const { cart, getTotalAmount } = useCart();
@@ -45,53 +50,43 @@ export default function CheckoutScreen() {
       const selectedLat = parseFloat(lat as string);
       const selectedLng = parseFloat(lng as string);
 
-      setLatitude(selectedLat);
-      setLongitude(selectedLng);
-
-      reverseGeocode(selectedLat, selectedLng);
+      if (!isNaN(selectedLat) && !isNaN(selectedLng)) {
+        setLatitude(selectedLat);
+        setLongitude(selectedLng);
+        reverseGeocode(selectedLat, selectedLng);
+      } else {
+        getCurrentLocation();
+      }
     } else {
       getCurrentLocation();
     }
   }, [lat, lng]);
 
-  useEffect(() => {
-    getCurrentLocation();
-  }, []);
-
   async function getCurrentLocation() {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission denied", "Location permission is required");
-        return;
-      }
-
-      const loc = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = loc.coords;
-      setLatitude(latitude);
-      setLongitude(longitude);
-
-      reverseGeocode(latitude, longitude);
+      const result = await getCurrentUserLocation();
+      setLatitude(result.coords.latitude);
+      setLongitude(result.coords.longitude);
+      setAddress(result.addressInfo.address);
+      setCity(result.addressInfo.city);
+      setProvince(result.addressInfo.province);
+      setZipCode(result.addressInfo.zipCode);
     } catch (err) {
-      console.error("Error getting location:", err);
-      Alert.alert("Error", "Failed to get current location");
+      console.warn("Error getting location in checkout:", err);
+      setLatitude(DEFAULT_COORDS.latitude);
+      setLongitude(DEFAULT_COORDS.longitude);
     }
   }
 
-  async function reverseGeocode(latitude: number, longitude: number) {
+  async function reverseGeocode(targetLat: number, targetLng: number) {
     try {
-      const [geoData] = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
-      if (geoData) {
-        setAddress(`${geoData.name} ${geoData.street}`);
-        setCity(geoData.city || "Unknown");
-        setProvince(geoData.region || "Unknown");
-        setZipCode(geoData.postalCode || "00000");
-      }
+      const addressInfo = await reverseGeocodeCoordinates(targetLat, targetLng);
+      setAddress(addressInfo.address);
+      setCity(addressInfo.city);
+      setProvince(addressInfo.province);
+      setZipCode(addressInfo.zipCode);
     } catch (err) {
-      console.error("Error in reverse geocoding:", err);
+      console.warn("Error in reverse geocoding checkout:", err);
     }
   }
 
@@ -131,7 +126,7 @@ export default function CheckoutScreen() {
       const orderId = await placeOrder(deliveryInfo, "Cash on Delivery");
 
       if (orderId) {
-        ToastAndroid.show("Order placed successfully!", ToastAndroid.SHORT);
+        showToast("Order placed successfully!", "Success");
         router.push("/(user)/confirmation");
       } else {
         Alert.alert(

@@ -14,7 +14,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useOrder, OrderStatus, Order } from "../../../context/orderContext";
 import { Ionicons } from "@expo/vector-icons";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import UniversalMap from "../../../components/UniversalMap";
 
 export default function OrderDetailsScreen() {
   const router = useRouter();
@@ -186,24 +186,13 @@ export default function OrderDetailsScreen() {
           <Text style={styles.sectionTitle}>DELIVERY INFORMATION</Text>
           {order.deliveryInfo.coordinates && (
             <View style={styles.mapContainer}>
-              <MapView
+              <UniversalMap
+                latitude={order.deliveryInfo.coordinates.latitude}
+                longitude={order.deliveryInfo.coordinates.longitude}
+                title="Delivery Location"
+                interactive={false}
                 style={styles.map}
-                provider={Platform.OS === "ios" ? undefined : PROVIDER_GOOGLE}
-                initialRegion={{
-                  latitude: order.deliveryInfo.coordinates.latitude,
-                  longitude: order.deliveryInfo.coordinates.longitude,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
-                scrollEnabled={false}
-                zoomEnabled={false}
-              >
-                <Marker
-                  coordinate={order.deliveryInfo.coordinates}
-                  pinColor="deeppink" // Rose-like color
-                  title="Delivery Location"
-                />
-              </MapView>
+              />
             </View>
           )}
 

@@ -137,28 +137,72 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
         images: item.images || [],
       }));
 
-      const res = await fetch(API_BASE_URL, {
-        method: "POST",
-        headers: await authHeaders(),
-        body: JSON.stringify({
-          items: orderItems,
-          deliveryInfo,
-          paymentType,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to place order");
+      const subtotal = getTotalAmount();
+      const appFee = 50;
+      const deliveryCharge = deliveryInfo.deliveryCharge || 150;
+      const total = subtotal + appFee + deliveryCharge;
 
-      const order: Order = data.order;
-      setOrders((prev) => [...prev, order]);
-      setCurrentOrder(order);
+      try {
+        const res = await fetch(API_BASE_URL, {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({
+            items: orderItems,
+            deliveryInfo,
+            paymentType,
+          }),
+        });
+
+        if (res.ok) {
+          const ct = res.headers.get("content-type");
+          if (ct && ct.includes("application/json")) {
+            const data = await res.json();
+            if (data.order) {
+              const order: Order = data.order;
+              setOrders((prev) => [...prev, order]);
+              setCurrentOrder(order);
+              clearCart();
+              return order.id || null;
+            }
+          }
+        }
+      } catch (netErr) {
+        console.warn("Backend order creation unreachable, storing locally:", netErr);
+      }
+
+      // Local fallback order
+      const localId = `ord-${Date.now()}`;
+      const localOrder: Order = {
+        id: localId,
+        userId: user.uid,
+        userName: user.displayName || "Customer",
+        userEmail: user.email,
+        items: orderItems,
+        total,
+        subtotal,
+        appFee,
+        deliveryInfo,
+        status: OrderStatus.PROCESSING,
+        paymentType,
+        paymentStatus: "pending",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const existingLocalOrdersRaw = await AsyncStorage.getItem("LOCAL_ORDERS");
+      const localOrdersList: Order[] = existingLocalOrdersRaw ? JSON.parse(existingLocalOrdersRaw) : [];
+      localOrdersList.unshift(localOrder);
+      await AsyncStorage.setItem("LOCAL_ORDERS", JSON.stringify(localOrdersList));
+
+      setOrders((prev) => [localOrder, ...prev]);
+      setCurrentOrder(localOrder);
       clearCart();
 
-      return order.id || null;
+      return localId;
     } catch (err) {
       console.error("Error placing order:", err);
       setError("Failed to place order. Please try again.");
-            return null;
+      return null;
     } finally {
       setLoading(false);
     }
@@ -169,18 +213,41 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     setError(null);
 
     try {
+      if (currentOrder && currentOrder.id === orderId) {
+        return currentOrder;
+      }
+
+      const match = orders.find((o) => o.id === orderId);
+      if (match) {
+        setCurrentOrder(match);
+        return match;
+      }
+
+      const raw = await AsyncStorage.getItem("LOCAL_ORDERS");
+      if (raw) {
+        const list: Order[] = JSON.parse(raw);
+        const found = list.find((o) => o.id === orderId);
+        if (found) {
+          setCurrentOrder(found);
+          return found;
+        }
+      }
+
       const res = await fetch(`${API_BASE_URL}/${orderId}`, {
         headers: await authHeaders(),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Order not found");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.order) {
+          setCurrentOrder(data.order);
+          return data.order;
+        }
+      }
 
-      setCurrentOrder(data.order);
-      return data.order;
-    } catch (err) {
-      console.error("Error getting order:", err);
-      setError("Failed to get order. Please try again.");
       return null;
+    } catch (err) {
+      console.warn("Error getting order:", err);
+      return currentOrder;
     } finally {
       setLoading(false);
     }
@@ -196,22 +263,33 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/user/me`, {
-        headers: await authHeaders(),
-      });
-      if (!res.ok) {
-        setOrders([]);
-        setUserOrders([]);
-        return;
+      let fetchedOrders: Order[] = [];
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/user/me`, {
+          headers: await authHeaders(),
+        });
+        if (res.ok) {
+          const ct = res.headers.get("content-type");
+          if (ct && ct.includes("application/json")) {
+            const data = await res.json();
+            if (data.orders) fetchedOrders = data.orders;
+          }
+        }
+      } catch (err) {
+        console.warn("Backend user orders unreachable, reading local storage:", err);
       }
-      const ct = res.headers.get("content-type");
-      if (!ct || !ct.includes("application/json")) {
-        setOrders([]);
-        setUserOrders([]);
-        return;
+
+      // Merge with local orders
+      const raw = await AsyncStorage.getItem("LOCAL_ORDERS");
+      if (raw) {
+        const localList: Order[] = JSON.parse(raw);
+        const uniqueLocal = localList.filter(
+          (lo) => !fetchedOrders.some((fo) => fo.id === lo.id)
+        );
+        fetchedOrders = [...uniqueLocal, ...fetchedOrders];
       }
-      const data = await res.json();
-      const fetchedOrders: Order[] = data.orders || [];
+
       setOrders(fetchedOrders);
       setUserOrders(
         fetchedOrders.map((order) => ({

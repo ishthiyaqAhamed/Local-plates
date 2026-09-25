@@ -7,11 +7,12 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
+import { MOCK_SHOPS, MOCK_PRODUCTS } from "../services/mockData";
 
 const API_BASE_URL = "https://local-plates-backend.onrender.com/api";
 const TOKEN_KEY = "local_plates_token";
 
-interface ShopProfile {
+export interface ShopProfile {
   uid: string;
   businessName: string;
   businessType: string;
@@ -67,24 +68,30 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const { user } = useAuth();
   const [shop, setShop] = useState<ShopProfile | null>(null);
-  const [shops, setShops] = useState<ShopProfile[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productTypes, setProductTypes] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [shops, setShops] = useState<ShopProfile[]>(MOCK_SHOPS);
+  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
+  const [productTypes, setProductTypes] = useState<string[]>([
+    "Rice & Curry",
+    "Biryani",
+    "Short Eats",
+    "Burger",
+    "Noodles",
+    "Desserts",
+  ]);
+  const [loading, setLoading] = useState(false);
 
   const fetchShops = async () => {
     try {
-      setLoading(true);
       const res = await fetch(`${API_BASE_URL}/shops`);
       if (!res.ok) return;
       const ct = res.headers.get("content-type");
       if (!ct || !ct.includes("application/json")) return;
       const data = await res.json();
-      if (data?.shops) setShops(data.shops);
+      if (data?.shops && data.shops.length > 0) {
+        setShops(data.shops);
+      }
     } catch (error) {
       console.warn("Could not fetch remote shops (using local/cached):", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -95,7 +102,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
       const ct = res.headers.get("content-type");
       if (!ct || !ct.includes("application/json")) return;
       const data = await res.json();
-      if (data?.products) {
+      if (data?.products && data.products.length > 0) {
         setProducts(data.products);
         const uniqueTypes = Array.from(
           new Set(data.products.map((product: Product) => product.type))
@@ -110,18 +117,19 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
   const fetchShopProfile = async (uid: string): Promise<ShopProfile | null> => {
     try {
       const res = await fetch(`${API_BASE_URL}/shops/${uid}`);
-      if (!res.ok) return null;
+      if (!res.ok) return MOCK_SHOPS.find(s => s.uid === uid) || null;
       const ct = res.headers.get("content-type");
-      if (!ct || !ct.includes("application/json")) return null;
+      if (!ct || !ct.includes("application/json")) return MOCK_SHOPS.find(s => s.uid === uid) || null;
       const data = await res.json();
-      return data.shop;
+      return data.shop || MOCK_SHOPS.find(s => s.uid === uid) || null;
     } catch (error) {
-      return null;
+      return MOCK_SHOPS.find(s => s.uid === uid) || null;
     }
   };
 
   useEffect(() => {
     fetchProducts();
+    fetchShops();
   }, []);
 
   const haversineDistance = (
@@ -147,29 +155,47 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setLoading(true);
       const res = await fetch(`${API_BASE_URL}/shops`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch shops");
+      let shopList: ShopProfile[] = MOCK_SHOPS;
+      if (res.ok) {
+        const ct = res.headers.get("content-type");
+        if (ct && ct.includes("application/json")) {
+          const data = await res.json();
+          if (data?.shops && data.shops.length > 0) {
+            shopList = data.shops;
+          }
+        }
+      }
 
-      const shopList: ShopProfile[] = data.shops;
+      // Filter by proximity if valid coordinates are available
+      const hasValidCoords =
+        typeof userLat === "number" &&
+        typeof userLng === "number" &&
+        !isNaN(userLat) &&
+        !isNaN(userLng);
 
-      // Filter by 5km if location is available
-      const filteredShops =
-        userLat && userLng
-          ? shopList.filter((shop) => {
-              if (!shop.location) return false;
-              const dist = haversineDistance(
-                userLat,
-                userLng,
-                shop.location.latitude,
-                shop.location.longitude
-              );
-              return dist <= 5;
-            })
-          : shopList;
+      const filteredShops = hasValidCoords
+        ? shopList.filter((shop) => {
+            if (
+              !shop.location ||
+              typeof shop.location.latitude !== "number" ||
+              typeof shop.location.longitude !== "number"
+            ) {
+              return false;
+            }
+            const dist = haversineDistance(
+              userLat,
+              userLng,
+              shop.location.latitude,
+              shop.location.longitude
+            );
+            return dist <= 30; // 30km radius
+          })
+        : shopList;
 
-      setShops(filteredShops);
+      setShops(filteredShops.length > 0 ? filteredShops : shopList);
     } catch (error) {
-      console.error("Error fetching shops:", error);
+      console.warn("Error fetching shops:", error);
+      setShops(MOCK_SHOPS);
     } finally {
       setLoading(false);
     }
